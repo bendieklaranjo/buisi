@@ -4,7 +4,7 @@ import { ModeChip } from "../components/ModeChip";
 import { TopBar } from "../components/TopBar";
 import { MASK_COLORS, floorLabel } from "../domain/fields";
 import type { Box, Element } from "../domain/types";
-import { AiError, aiStatus, detectComponents } from "../lib/ai";
+import { AiError, aiStatus, detectElements } from "../lib/ai";
 import { createElement } from "../lib/elements";
 import { loadImage, preparePhoto } from "../lib/images";
 import { navigate } from "../lib/nav";
@@ -106,7 +106,7 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
 
   const confirm = () => {
     const res = pending?.result;
-    if (!pending || !res || !maskArea(res.mask)) { toast("The outline is empty. Tap on the component."); return; }
+    if (!pending || !res || !maskArea(res.mask)) { toast("The outline is empty. Tap on the element."); return; }
     const e = createElement(p, r, { mask: encodeMask(res.mask, res.w, res.h), box: maskBox(res.mask, res.w, res.h), label: pending.label, taps: pending.taps, segStart: pending.segStart, fromDetection: !!pending.detId });
     if (pending.detId) { const d = r.detections.find(d => d.id === pending.detId); if (d) { d.usedBy = e.id; saveProject(p); } }
     setPending(null);
@@ -123,15 +123,15 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
 
   const detect = async () => {
     if (!r.photoId) return;
-    setBusy(true); setStatus("AI is looking for reusable components… this can take up to a minute.");
+    setBusy(true); setStatus("AI is looking for reusable elements… this can take up to a minute.");
     const t0 = Date.now();
     try {
       const blob = await getPhoto(r.photoId);
-      const found = await detectComponents(blob!, p, r);
+      const found = await detectElements(blob!, p, r);
       r.detections = found.map((d, k) => ({ id: nid(), label: d.label, box: d.box, color: MASK_COLORS[k % MASK_COLORS.length] }));
       r.detectMs = (r.detectMs ?? 0) + Date.now() - t0;
       saveProject(p);
-      setStatus(found.length ? `${found.length} candidates marked. Tap one to outline it.` : "No components found. Tap them yourself.");
+      setStatus(found.length ? `${found.length} candidates marked. Tap one to outline it.` : "No elements found. Tap them yourself.");
     } catch (e) {
       setStatus(e instanceof AiError ? e.message : "The AI request failed.");
     } finally { setBusy(false); }
@@ -143,7 +143,7 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
       : res?.autoTolerance ? `Tolerance lowered to ${res.autoTolerance} at that spot so the outline stays on the element. Check it, then confirm.`
       : res?.usedBoxFallback ? "The AI box is used as outline. Tap + or − to refine it."
       : "Check the outline. Add or remove areas, then confirm."
-    : status || (r.detections.some(d => !d.usedBy) ? "Tap a marked component, or tap anything else you want to inventory." : "Tap a component to outline it, or let AI mark candidates.");
+    : status || (r.detections.some(d => !d.usedBy) ? "Tap a marked element, or tap anything else you want to inventory." : "Tap an element to outline it, or let AI mark candidates.");
 
   return (
     <>
@@ -183,7 +183,7 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
                   </>
                 ) : (
                   <div className="row">
-                    {ai && <button className="btn sage grow" disabled={busy} onClick={detect}><Icon name="spark" /> Mark components with AI</button>}
+                    {ai && <button className="btn sage grow" disabled={busy} onClick={detect}><Icon name="spark" /> Mark elements with AI</button>}
                     <label className="btn ghost" style={{ position: "relative" }}><Icon name="cam" /> Retake
                       <input type="file" accept="image/*" capture="environment" style={{ position: "absolute", inset: 0, opacity: 0 }} aria-label="Retake room photo" onChange={e => onPhoto(e.target.files?.[0])} />
                     </label>
@@ -194,7 +194,7 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
           </>
         )}
 
-        <div className="section-title"><h3>Within this room these components have market demand</h3></div>
+        <div className="section-title"><h3>Within this room these elements have market demand</h3></div>
         <div className="list">
           {elements.length === 0 ? <div className="empty">{assisted && r.photoId ? "No elements yet. Tap one in the photo." : "No elements yet."}</div>
             : elements.map(e => (
@@ -206,7 +206,7 @@ export function RoomScreen({ pid, roomId }: { pid: string; roomId: string }) {
               </button>
             ))}
         </div>
-        <button className="btn block" onClick={() => { const e = createElement(p, r); navigate({ name: "element", pid, elementId: e.id }); }}><Icon name="plus" /> Add component manually</button>
+        <button className="btn block" onClick={() => { const e = createElement(p, r); navigate({ name: "element", pid, elementId: e.id }); }}><Icon name="plus" /> Add element manually</button>
       </main>
     </>
   );

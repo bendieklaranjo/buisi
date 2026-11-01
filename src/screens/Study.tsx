@@ -57,7 +57,7 @@ export function Study() {
             </svg>
           </div>
         ) : (
-          <div className="list"><div className="empty">No saved elements yet. Time starts when you tap a component (assisted) or choose “Add component manually”, pauses while the app is in the background, and stops when you save.</div></div>
+          <div className="list"><div className="empty">No saved elements yet. Time starts when you tap an element (assisted) or choose “Add element manually”, pauses while the app is in the background, and stops when you save.</div></div>
         )}
         {rows.length > 0 && (
           <>

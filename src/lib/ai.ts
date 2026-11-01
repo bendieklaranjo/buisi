@@ -40,16 +40,16 @@ async function askJson<T>(prompt: string, images: Blob[], signal?: AbortSignal):
 
 export interface Detected { label: string; box: Box }
 
-export async function detectComponents(photo: Blob, project: Project, room: Room, signal?: AbortSignal): Promise<Detected[]> {
-  const res = await askJson<{ components?: { label?: string; box?: number[] }[] }>(
-    `You are assisting a building surveyor who documents reusable building components (circular construction, pre-demolition inventory). The image shows one room (${room.useLabel}) of a building${project.info.baujahr ? " built in " + project.info.baujahr : ""}.
-List the clearly visible components that could be removed and reused and typically have market demand, such as windows, doors, radiators, light fixtures, washbasins, WCs, kitchen units, built-in cabinets, wooden flooring, railings, beams, cladding panels. Ignore loose furniture and people.
-Reply with only JSON: {"components":[{"label":"Window","box":[x,y,w,h]}]}
+export async function detectElements(photo: Blob, project: Project, room: Room, signal?: AbortSignal): Promise<Detected[]> {
+  const res = await askJson<{ elements?: { label?: string; box?: number[] }[] }>(
+    `You are assisting a building surveyor who documents reusable building elements and products (circular construction, pre-demolition inventory). The image shows one room (${room.useLabel}) of a building${project.info.baujahr ? " built in " + project.info.baujahr : ""}.
+List the clearly visible building elements that could be removed and reused and typically have market demand, such as windows, doors, radiators, light fixtures, washbasins, WCs, kitchen units, built-in cabinets, wooden flooring, railings, beams, cladding panels. Ignore loose furniture and people.
+Reply with only JSON: {"elements":[{"label":"Window","box":[x,y,w,h]}]}
 - label: one of ${ELEMENT_TYPES.map(t => JSON.stringify(t)).join(", ")}
 - box: bounding box normalised to the image, values 0..1, origin top-left, [left, top, width, height]
-- at most 12 components, one entry per physical item.`,
+- at most 12 elements, one entry per physical item.`,
     [photo], signal);
-  return (res.components || [])
+  return (res.elements || [])
     .filter(d => Array.isArray(d.box) && d.box.length === 4 && d.box.every(n => typeof n === "number"))
     .slice(0, 12)
     .map(d => {
@@ -63,7 +63,7 @@ Reply with only JSON: {"components":[{"label":"Window","box":[x,y,w,h]}]}
 export async function fillFields(images: Blob[], hasCrop: boolean, known: Record<string, string>, project: Project, room: Room | undefined, signal?: AbortSignal) {
   const keys = ELEMENT_FIELDS.map(f => f.key);
   return askJson<{ fields?: Record<string, unknown>; note?: string }>(
-    `You help a building surveyor document a reusable building component for a pre-demolition / reuse inventory following DIN SPEC 91484.
+    `You help a building surveyor document a reusable building element (Bauteil / Bauprodukt) for a pre-demolition / reuse inventory following DIN SPEC 91484.
 Context: building "${project.name}"${project.info.baujahr ? ", built " + project.info.baujahr : ""}${project.info.bauweise ? ", " + project.info.bauweise : ""}${project.city ? ", " + project.city : ""}. Room: ${room?.useLabel || ""} on floor ${floorLabel(room?.floor ?? 0)}.
 ${hasCrop ? "Image 1 is a crop of the room photo around the element. Further images are close-ups of the same element." : "The images are photos of the element."}
 Already entered by the surveyor (keep these unless clearly wrong): ${JSON.stringify(known)}

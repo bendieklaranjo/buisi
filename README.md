@@ -1,6 +1,6 @@
 # BUISI – Building stock inventory tool
 
-A phone-first web app for documenting reusable building components, room by room. A person stays in the loop at every step: segmentation proposes an outline, the person corrects it; AI proposes field values, the person checks them. Every element records how long it took, so assisted and manual inventory can be compared.
+A phone-first web app for documenting reusable building elements and products, room by room. A person stays in the loop at every step: segmentation proposes an outline, the person corrects it; AI proposes field values, the person checks them. Every element records how long it took, so assisted and manual inventory can be compared.
 
 Version 0.1 – ported from the claude.ai prototype.
 
@@ -29,12 +29,21 @@ Your phone will warn about the self-signed certificate. Accept it for this local
 
 ### Turning on the AI features (optional)
 
-"Mark components with AI" and "Fill fields" use Claude's vision through a small local proxy, so your API key never reaches the browser.
+"Mark elements with AI" and "Fill fields" use Claude's vision through a small local proxy, so your API key never reaches the browser.
 
 1. Copy `.env.example` to `.env` and put your key from [console.anthropic.com](https://console.anthropic.com) into it.
 2. In a second terminal, run `npm run ai`.
 
 Without the proxy the app works normally and simply hides the AI buttons.
+
+## Live demo (GitHub Pages)
+
+Every push to `main` builds the app and publishes it at `https://<your-github-username>.github.io/buisi/` (see `.github/workflows/deploy.yml`). The link is HTTPS, so it works on any phone, with the camera, and without being on the same Wi-Fi.
+
+- **One-time setup:** on github.com, open the repository → **Settings → Pages → Source: GitHub Actions**.
+- **Progress:** the **Actions** tab shows each deploy. A green tick means the new version is live, usually 1–2 minutes after pushing.
+- **Data stays on each device:** every tester's inventory is stored in their own browser. Nothing is uploaded.
+- **AI features** are hidden on the hosted demo. The local proxy only runs on your computer. Hosting them needs a small server function (planned).
 
 ## How the app is organised
 
@@ -63,7 +72,7 @@ To change what the app asks for (fields, units, element types, room uses), edit 
 ## The time study
 
 - Each element stores its **mode**: `assisted` (segmentation + AI) or `manual` (baseline). Switch with the mode chip in the top bar.
-- The clock **starts** at the first tap on a component (assisted) or at "Add component manually".
+- The clock **starts** at the first tap on an element (assisted) or at "Add element manually".
 - It **pauses** while the app is in the background, and **stops** at the first save (`firstSavedMs`).
 - Also logged per element: segmentation taps, AI wait time, AI fields filled, AI fields kept, human corrections, required fields filled, number of photos.
 - Results: **Time study results** in the menu, the CSV export there, and the "Time study" sheet in the Excel export.

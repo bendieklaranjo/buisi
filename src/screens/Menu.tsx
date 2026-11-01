@@ -13,7 +13,7 @@ export function Menu() {
       <main className="wrap">
         <div className="hero-menu">
           <BuildingIllustration width={120} />
-          <div className="stack" style={{ gap: 6 }}><span className="eyebrow">Building stock inventory</span><h2>Document reusable components, room by room.</h2></div>
+          <div className="stack" style={{ gap: 6 }}><span className="eyebrow">Building stock inventory</span><h2>Document reusable elements and products, room by room.</h2></div>
         </div>
         <div className="bigchoice">
           <button className="btn primary" onClick={() => navigate({ name: "project" })}>Start new project <span aria-hidden="true">→</span></button>

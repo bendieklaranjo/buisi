@@ -15,6 +15,7 @@ export const KATEGORIEN = [
   "Gebäude für Industrie / Produktion",
   "Gebäude für Kultur / Freizeit",
   "Gebäude für Verkehr",
+  "Gebäude mit gemischter Nutzung (Mixed use)",
   "Sonstiges",
 ];
 
@@ -64,7 +65,7 @@ export interface FieldDef {
   options?: string[];
 }
 
-/** Component fields after DIN SPEC 91484 (Verortung and Fotos are handled separately). */
+/** Element fields after DIN SPEC 91484 (Verortung and Fotos are handled separately). */
 export const ELEMENT_FIELDS: FieldDef[] = [
   { key: "elementType", label: "Element type", de: "", req: "muss", kind: "select", options: ELEMENT_TYPES },
   { key: "ebkp", label: "e-BKP-H code", de: "", req: "", kind: "text" },

@@ -1,7 +1,7 @@
 # CLAUDE.md – guidance for Claude Code in this repo
 
 ## What this is
-BUISI is a phone-first web app (Vite + React + TypeScript) for inventorying reusable building components in existing buildings, room by room. It is also a research instrument: it measures time per element in **assisted** mode (segmentation + AI) versus **manual** mode (baseline). Users are building surveyors and researchers working on site, often outdoors, one-handed, with poor signal.
+BUISI is a phone-first web app (Vite + React + TypeScript) for inventorying reusable building elements and products in existing buildings, room by room. It is also a research instrument: it measures time per element in **assisted** mode (segmentation + AI) versus **manual** mode (baseline). Users are building surveyors and researchers working on site, often outdoors, one-handed, with poor signal.
 
 ## Commands
 - `npm run dev` – dev server (also on the local network for phones)
@@ -24,7 +24,8 @@ BUISI is a phone-first web app (Vite + React + TypeScript) for inventorying reus
 3. **Mode is stored per element** (`timing.mode`), at creation time.
 4. **DIN SPEC 91484 naming.** Keep the German terms next to the English labels in the UI and as column names in exports.
 5. **Room tags** follow `Floor_Use_Number`, e.g. `OG1_OFF_02` (see `makeRoomTag`).
-6. **Offline first.** Everything except the AI calls must work without a network connection.
+6. **Terminology.** Say *element* (Bauteil) or *product* (Bauprodukt), never "component", in UI copy, AI prompts and docs. "Component" is only used for React components in code.
+7. **Offline first.** Everything except the AI calls must work without a network connection.
 
 ## Style
 - Mobile first: test at 400 px width. Touch targets at least 44 px.

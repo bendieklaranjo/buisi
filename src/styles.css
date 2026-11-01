@@ -1,5 +1,5 @@
 /* BUISI design tokens + styles (sage/olive palette from the BUISI deck). Colours are tokens: change them in :root. */
-/* Layout: one phone-width column, a slim top bar, screens follow the BUISI deck flow; sage + olive from the deck, highlight colours mark segmented components */
+/* Layout: one phone-width column, a slim top bar, screens follow the BUISI deck flow; sage + olive from the deck, highlight colours mark segmented elements */
 :root{
   --bg:#EDF0E7; --surface:#F8F9F4; --sunk:#E2E7D9; --line:#CBD2BC;
   --fg:#262B19; --muted:#636B52; --primary:#434B26; --on-primary:#F1F3EC;
@@ -146,7 +146,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--sage-deep);outli
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.status.busy::before{animation:none}}
 
-/* component */
+/* element */
 .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .thumb{position:relative;flex:none;width:84px;height:84px;border-radius:8px;overflow:hidden;background:var(--sunk);border:1px solid var(--line)}
 .thumb img{width:100%;height:100%;object-fit:cover}
