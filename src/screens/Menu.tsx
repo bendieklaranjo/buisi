@@ -9,11 +9,11 @@ export function Menu() {
   const list = Object.values(projects).sort((a, b) => b.updatedAt - a.updatedAt);
   return (
     <>
-      <TopBar title="BUISI" />
+      <TopBar title="SwissInv-Beta" />
       <main className="wrap">
         <div className="hero-menu">
           <BuildingIllustration width={120} />
-          <div className="stack" style={{ gap: 6 }}><span className="eyebrow">Building stock inventory</span><h2>Document reusable elements and products, room by room.</h2></div>
+          <div className="stack" style={{ gap: 6 }}><span className="eyebrow">Reuse inventory · Swiss-Inv</span><h2>Document reusable elements and products, room by room.</h2></div>
         </div>
         <div className="bigchoice">
           <button className="btn primary" onClick={() => navigate({ name: "project" })}>Start new project <span aria-hidden="true">→</span></button>
@@ -24,7 +24,7 @@ export function Menu() {
             : list.length === 0 ? <div className="empty">No projects yet. Start one to begin your first inventory.</div>
             : list.map(p => {
               const saved = elementsOf(p.id).filter(e => e.status === "saved").length;
-              const sub = [p.client, [p.street, p.nr].filter(Boolean).join(" "), p.city].filter(Boolean).join(" · ") || p.type;
+              const b = p.building; const sub = [[b.adresse, b.hausnummer].filter(Boolean).join(" "), [b.plz, b.ort].filter(Boolean).join(" "), b.egid && `EGID ${b.egid}`].filter(Boolean).join(" · ") || p.type;
               return (
                 <button key={p.id} className="li" onClick={() => navigate(p.info.floorsAbove ? { name: "floors", pid: p.id } : { name: "address", pid: p.id })}>
                   <div className="grow"><div className="t">{p.name}</div><div className="s">{sub}</div></div>

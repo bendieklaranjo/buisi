@@ -1,21 +1,22 @@
 {
-  "name": "buisi",
+  "name": "swissinv-beta",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "BUISI – building stock inventory tool (human-in-the-loop prototype)",
+  "description": "SwissInv-Beta \u2013 reuse inventory following the Swiss-Inv data structure (human-in-the-loop prototype)",
   "scripts": {
     "dev": "vite --host",
     "dev:phone": "vite --host --mode phone",
-    "ai": "node server/ai-proxy.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "heic2any": "^0.0.4",
     "idb-keyval": "^6.2.1",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
+    "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "xlsx": "^0.18.5"
@@ -29,5 +30,7 @@
     "typescript": "~5.5.4",
     "vite": "^5.4.8"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

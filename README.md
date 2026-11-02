@@ -1,105 +1,81 @@
-# BUISI – Building stock inventory tool
+# SwissInv-Beta
 
-A phone-first web app for documenting reusable building elements and products, room by room. A person stays in the loop at every step: segmentation proposes an outline, the person corrects it; AI proposes field values, the person checks them. Every element records how long it took, so assisted and manual inventory can be compared.
+A phone-first web app for **reuse inventories** of existing buildings, room by room, following the **Swiss-Inv data structure** (Cirkla, v1.0-2024). A person stays in the loop at every step: the building register pre-fills the building data, tap-to-outline proposes the element, the element catalogue proposes eBKP, IFC entity and unit – and the person checks and completes everything. Every element records how long it took, so assisted and manual inventory can be compared.
 
-Version 0.1 – ported from the claude.ai prototype.
+**Live demo:** https://bendieklaranjo.github.io/swissinv-beta/
+
+SwissInv-Beta is the public, model-free part of the research. The full tool with vision models, LiDAR and price prediction is **BUISI**, developed separately.
+
+## What it does
+
+1. **Project** – name, project type (only the reuse inventory is available; others are marked "coming soon") and inventory mode.
+2. **Find the building** – address search in the Swiss building register (GWR, via geo.admin.ch). Fills EGRID, EGID, address, year built, building volume, storeys and the SIA 102 building type. Links to map.geo.admin.ch and, in Zürich, to Zürich virtuell (3D).
+3. **Building information** – the Swiss-Inv "Gebäude" fields (Allgemeine Gebäudedaten, Weitere Informationen, Kontakte), with the template's explanations behind each ⓘ button. The auditor's contact details are remembered for the next project. Values that are the same for all elements (Verfügbarkeit, Dokumente, Status) are set once here.
+4. **Floors → rooms** – rooms get a tag after `Floor_Use_Number`, e.g. `OG1_OFF_02`.
+5. **Room photo → tap-to-outline** (assisted mode) – tap an element, correct the outline, confirm. The outline crop becomes the first photo.
+6. **Element** – Swiss-Inv "Bauteil Stufe 1" (and optional "Stufe 2"): function in the building (eBKP main group) before the eBKP element group, height/width/depth with a sketch, three photo slots (front, side, fixing detail), "destination project known".
+7. **Export** – Excel in the Swiss-Inv structure, ZIP with Excel + photos, CSV, PDF.
+
+Blue fields are **suggestions** (from the register, the catalogue or the building defaults). They stay blue until the person checks or changes them, and the app never overwrites what the person typed.
 
 ## Quick start (VS Code)
 
-You need [Node.js](https://nodejs.org) (LTS) and [VS Code](https://code.visualstudio.com).
+You need [Node.js](https://nodejs.org) (LTS).
 
-1. Unzip this folder and open it in VS Code (**File → Open Folder…**).
-2. Open a terminal (**Terminal → New Terminal**) and run:
-   ```bash
-   npm install
-   npm run dev
-   ```
-3. Open the `Local` address in your browser.
-4. **On your phone:** connect to the same Wi-Fi and open the `Network` address (e.g. `http://192.168.1.20:5173`). The page reloads every time you save a file.
-
-If the phone can't reach the address, allow Node.js through your computer's firewall.
-
-### Testing over HTTPS
-
-Some phone features (installing to the home screen, a live camera view later) need HTTPS:
 ```bash
-npm run dev:phone
+npm install
+npm run dev
 ```
-Your phone will warn about the self-signed certificate. Accept it for this local address.
 
-### Turning on the AI features (optional)
-
-"Mark elements with AI" and "Fill fields" use Claude's vision through a small local proxy, so your API key never reaches the browser.
-
-1. Copy `.env.example` to `.env` and put your key from [console.anthropic.com](https://console.anthropic.com) into it.
-2. In a second terminal, run `npm run ai`.
-
-Without the proxy the app works normally and simply hides the AI buttons.
+Open the `Local` address on your computer, or the `Network` address on your phone (same Wi-Fi). Use `npm run dev:phone` for HTTPS on the local network.
 
 ## Live demo (GitHub Pages)
 
-Every push to `main` builds the app and publishes it at `https://<your-github-username>.github.io/buisi/` (see `.github/workflows/deploy.yml`). The link is HTTPS, so it works on any phone, with the camera, and without being on the same Wi-Fi.
+Every push to `main` builds the app and publishes it (`.github/workflows/deploy.yml`, Pages source: GitHub Actions). The demo URL follows the repository name. After a deploy, reload with Ctrl+Shift+R or use a private window – Pages caches for about 10 minutes. Each tester's data stays in their own browser.
 
-- **One-time setup:** on github.com, open the repository → **Settings → Pages → Source: GitHub Actions**.
-- **Progress:** the **Actions** tab shows each deploy. A green tick means the new version is live, usually 1–2 minutes after pushing.
-- **Data stays on each device:** every tester's inventory is stored in their own browser. Nothing is uploaded.
-- **AI features** are hidden on the hosted demo. The local proxy only runs on your computer. Hosting them needs a small server function (planned).
+## Swiss-Inv conformity
+
+- All field names, order, value lists, Muss/Kann and explanations come from `src/domain/swissinv.ts`, transcribed from the template.
+- The Excel export has the sheets **Gebäude** and **Bauteile** in template order and naming. Fields the app adds beyond Swiss-Inv (marked "Zusatz" in the app) go to a separate sheet **Zusatzfelder**: Hauptmaterial, destination project, mode, GWR reference.
+- **Dimensions:** the template lists height, width, depth, length and diameter as Muss. The app counts the group as complete with height + width + depth, or length, or diameter.
+- **Photos:** at least 3 per element, compressed to under 1.5 MB, named `<Bauteil ID>_<n>.jpg` in the ZIP and in "Liste der vorhandenen Fotos".
+- **Bauwerksart** allows several values for mixed-use buildings, joined with "; ".
+
+## The time study
+
+- Each element stores its **mode**: `assisted` (tap-to-outline, crop as first photo, catalogue suggestions) or `manual` (form only). Both modes get the register data and the building-wide defaults.
+- The clock **starts** at the first tap on an element (assisted) or at "Add element manually", **pauses** while the app is in the background, and **stops** at the first save (`firstSavedMs`).
+- Also logged: outline taps, suggestions kept, suggestions corrected, required fields filled, number of photos.
+- Results: **Time study results** in the menu, its CSV export, and the "Zeitstudie" sheet in the Excel export.
 
 ## How the app is organised
 
 ```
 src/
   domain/
-    types.ts         data model: Project, Room, Element, Timing, Route
-    fields.ts        DIN SPEC 91484 fields, option lists, room-tag convention
+    swissinv.ts      Swiss-Inv fields, lists, explanations, eBKP, element catalogue
+    fields.ts        app vocabulary: project types, room uses, floors, room tags
+    types.ts         data model
   lib/
+    gwr.ts           Swiss building register (geo.admin.ch) search and mapping
+    elements.ts      element creation and suggestions (auto-fill)
     store.ts         IndexedDB storage (projects, elements, photos)
     timing.ts        time-study clock
-    segmentation/    engine interface + current region-growing engine
-    ai.ts            Claude vision calls (via server/ai-proxy.mjs)
-    export.ts        CSV, Excel, PDF, time-study export
-    images.ts        photo resizing and cropping
-    nav.ts           screen navigation (phone back gesture works)
-  screens/           one file per screen, in the order of the BUISI deck
+    segmentation/    engine interface + region-growing engine
+    export.ts        Excel, ZIP, CSV, PDF, time study
+    images.ts        photo decoding (incl. iPhone HEIC), compression, cropping
+    nav.ts           screen navigation
+  screens/           one file per screen
   components/        shared UI pieces
-  styles.css         design tokens (sage/olive) and styles
-server/
-  ai-proxy.mjs       local proxy for Claude API requests
 ```
 
-To change what the app asks for (fields, units, element types, room uses), edit `src/domain/fields.ts`.
+## Roadmap for SwissInv-Beta
 
-## The time study
-
-- Each element stores its **mode**: `assisted` (segmentation + AI) or `manual` (baseline). Switch with the mode chip in the top bar.
-- The clock **starts** at the first tap on an element (assisted) or at "Add element manually".
-- It **pauses** while the app is in the background, and **stops** at the first save (`firstSavedMs`).
-- Also logged per element: segmentation taps, AI wait time, AI fields filled, AI fields kept, human corrections, required fields filled, number of photos.
-- Results: **Time study results** in the menu, the CSV export there, and the "Time study" sheet in the Excel export.
-
-## Swapping in SAM
-
-The screens only use the interface in `src/lib/segmentation/types.ts`. To use MobileSAM or SlimSAM:
-
-1. `npm install onnxruntime-web`
-2. Put the ONNX encoder and decoder files in `public/models/`.
-3. Create `src/lib/segmentation/sam.ts` that implements `SegEngine`:
-   - `prepare(img)` runs the image encoder once per room photo. This is slow (about 1–3 s on a phone), so show "Preparing outlines…" while it runs.
-   - `segment(prompt)` runs the decoder with positive points (label 1), negative points (label 0) and an optional box. It returns the mask at a working resolution.
-4. Change `createEngine()` in `src/lib/segmentation/index.ts` to return the SAM engine.
-
-Keep the region-growing engine as a fallback for older phones.
-
-## Roadmap
-
-- [ ] SAM segmentation (see above)
-- [ ] Address lookup: Swiss building register (GWR), Zürich open data, Street View image
+- [ ] Zürich-specific data from the city's 3D model (building height, volume) where the register is incomplete
+- [ ] French and Italian versions (Swiss-Inv exists in DE/FR/IT)
 - [ ] Installable offline app (`vite-plugin-pwa`)
-- [ ] Live camera view instead of photo capture
-- [ ] Shared projects and a backend (e.g. Supabase) – replace the persistence functions in `src/lib/store.ts`
-- [ ] Upload to reuse marketplaces
-- [ ] Native iOS/Android app with Capacitor
-- [ ] Verify e-BKP-H defaults in `TYPE_DEFAULTS` (currently main groups only)
+- [ ] PDF report design
+- [ ] Verify the eBKP suggestions in the element catalogue with practitioners
 
 ## Scripts
 
@@ -107,6 +83,5 @@ Keep the region-growing engine as a fallback for older phones.
 | --- | --- |
 | `npm run dev` | Development server, reachable from your phone |
 | `npm run dev:phone` | Same, over HTTPS |
-| `npm run ai` | Local AI proxy (needs `.env`) |
 | `npm run build` | Type check and production build into `dist/` |
 | `npm run preview` | Serve the production build |

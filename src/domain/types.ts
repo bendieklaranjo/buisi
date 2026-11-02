@@ -3,26 +3,27 @@ export type Mode = "assisted" | "manual";
 /** Normalised box [left, top, width, height], values 0..1 of the image. */
 export type Box = [number, number, number, number];
 
-export interface BuildingInfo {
-  kat?: string; // Bauwerkskategorie (HOAI Anlage 10.2)
-  ort?: string; // Ort
-  bauweise?: string; // Bauweise/-art
-  baujahr?: string; // Baujahr
-  gk?: string; // Gebäudeklasse (MBO § 2 Abs. 3)
-  bri?: string; // Brutto-Rauminhalt m³ (DIN 277)
-  bgf?: string; // Brutto-Grundfläche m² (DIN 277)
-  nutzung?: string; // Nutzungsart
-  umbau?: string; // vergangene Umbaumaßnahmen
+/** App-level floor setup (not part of Swiss-Inv). */
+export interface FloorSetup {
   floorsAbove?: number;
   basements?: number;
 }
 
-export interface Detection {
-  id: string;
+/** What the Swiss building register (GWR) returned, kept for reference. */
+export interface GwrInfo {
+  featureId: string;
   label: string;
-  box: Box;
-  color: string;
-  usedBy?: string | null; // element id created from this detection
+  name?: string; // gbez, e.g. "ETH Hönggerberg"
+  gemeinde?: string;
+  gemeindeNr?: number;
+  e?: number; // LV95 building coordinates
+  n?: number;
+  gkat?: number;
+  gklas?: number;
+  garea?: number; // footprint m²
+  gebf?: number; // energy reference area m²
+  gastw?: number;
+  fetchedAt: number;
 }
 
 export interface Room {
@@ -35,23 +36,23 @@ export interface Room {
   photoId?: string;
   photoW?: number;
   photoH?: number;
-  detections: Detection[];
-  detectMs?: number;
   createdAt: number;
 }
 
 export interface Project {
   id: string;
   name: string;
-  client: string;
   type: string;
   mode: Mode;
-  street: string;
-  nr: string;
-  zip: string;
-  city: string;
   imageId?: string;
-  info: BuildingInfo;
+  /** Swiss-Inv "Gebäude" fields, keyed as in BUILDING_FIELDS. */
+  building: Record<string, string>;
+  /** Values proposed by the register; a field shows as suggested while its value still equals this. */
+  buildingSuggested: Record<string, string>;
+  /** Values copied into every new element (Verfügbarkeit, Dokumente, Status). */
+  defaults: Record<string, string>;
+  gwr?: GwrInfo;
+  info: FloorSetup;
   rooms: Room[];
   lastFloor?: number;
   createdAt: number;
@@ -67,19 +68,17 @@ export interface StoredMask {
 
 export interface Timing {
   mode: Mode;
-  /** Active time on this element in ms (segmentation + form), paused while the app is hidden. */
+  /** Active time on this element in ms (outline + form), paused while the app is hidden. */
   activeMs: number;
   /** activeMs at the moment of first save – the main study measure. */
   firstSavedMs?: number;
   segTaps: number;
-  fromDetection: boolean;
-  aiUsed: boolean;
-  aiCount: number;
-  aiMs: number;
-  aiFieldsFilled?: number;
-  aiFieldsKept?: number;
+  /** Number of suggested values (catalogue, register, defaults) still unchanged at first save. */
+  suggestionsKept?: number;
+  /** Number of suggested values the person changed before the first save. */
   corrections?: number;
   mussFilled?: number;
+  mussTotal?: number;
 }
 
 export interface Element {
@@ -90,11 +89,12 @@ export interface Element {
   status: "draft" | "saved";
   mask?: StoredMask;
   box?: Box;
+  /** Photos in order; the first three are Frontalansicht, Seitenansicht, Detail Fixierung. */
   photoIds: string[];
+  /** Swiss-Inv "Bauteil" fields (Stufe 1 + 2), keyed as in ELEMENT_FIELDS. */
   fields: Record<string, string>;
-  /** Values as proposed by AI or defaults; a field is "AI-filled" while its value still equals this. */
-  aiFields: Record<string, string>;
-  aiNote?: string;
+  /** Suggested values; a field shows as suggested (blue) while its value still equals this. */
+  suggested: Record<string, string>;
   timing: Timing;
   createdAt: number;
   updatedAt: number;

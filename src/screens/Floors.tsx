@@ -35,7 +35,8 @@ export function Floors({ pid }: { pid: string }) {
         <div className="floors">
           {n > show && <button className="btn sm ghost" disabled={start === 0} onClick={() => setFloor(floors[Math.max(0, idx - 4)])}>Higher floors ↑</button>}
           <svg viewBox={`0 0 340 ${h}`} role="group" aria-label="Floors">
-            {vis.map((f, k) => {
+            {/* painted bottom-up, so the highest floor sits in front and basements at the back */}
+            {vis.map((f, k) => ({ f, k })).reverse().map(({ f, k }) => {
               const y = 14 + k * gap, sel = f === floor, count = p.rooms.filter(r => r.floor === f).length;
               const fill = sel ? "var(--primary)" : f < 0 ? "var(--sage-deep)" : "var(--sage)";
               return (

@@ -7,7 +7,7 @@ import { useSyncExternalStore, useEffect, useState } from "react";
 import { createStore, get, set, del, entries } from "idb-keyval";
 import type { Element, Project } from "../domain/types";
 
-const dataDb = createStore("buisi-data", "records");
+const dataDb = createStore("buisi-data", "records"); // name kept so v0.1 data stays readable
 const photoDb = createStore("buisi-photos", "blobs");
 
 interface Data {
@@ -34,8 +34,8 @@ export async function loadAll() {
   try {
     const all = await entries<string, Project | Element>(dataDb);
     for (const [k, v] of all) {
-      if (k.startsWith("p:")) data.projects[(v as Project).id] = v as Project;
-      else if (k.startsWith("e:")) data.elements[(v as Element).id] = v as Element;
+      if (k.startsWith("p:")) data.projects[(v as Project).id] = migrateProject(v as Project);
+      else if (k.startsWith("e:")) data.elements[(v as Element).id] = migrateElement(v as Element);
     }
   } catch (e) {
     console.warn("Could not load saved data", e);
@@ -73,6 +73,38 @@ export const elementsOf = (pid: string, roomId?: string) =>
   Object.values(data.elements)
     .filter(e => e.pid === pid && (!roomId || e.roomId === roomId))
     .sort((a, b) => a.createdAt - b.createdAt);
+
+/* ---------- migration of data saved by v0.1 (DIN fields) ---------- */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateProject(p: any): Project {
+  if (!p.building) {
+    const i = p.info ?? {};
+    p.building = { adresse: p.street ?? "", hausnummer: p.nr ?? "", plz: p.zip ?? "", ort: p.city ?? "", baujahr: i.baujahr ?? "", gebaeudevolumen: i.bri ?? "", geschossflaeche: i.bgf ?? "", agName: p.client ?? "" };
+    p.info = { floorsAbove: i.floorsAbove, basements: i.basements };
+  }
+  p.buildingSuggested ??= {};
+  p.defaults ??= {};
+  p.type ??= "";
+  for (const r of p.rooms ?? []) delete r.detections;
+  return p as Project;
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateElement(e: any): Element {
+  e.suggested ??= e.aiFields ?? {};
+  delete e.aiFields; delete e.aiNote;
+  if (e.fields && !e.fields.bezeichnung && e.fields.elementType) e.fields.bezeichnung = e.fields.elementType;
+  e.photoIds ??= [];
+  return e as Element;
+}
+
+/* ---------- auditor details remembered on this device ---------- */
+const EXPERT_KEY = "swissinv:expert";
+export function rememberExpert(v: Record<string, string>) {
+  try { localStorage.setItem(EXPERT_KEY, JSON.stringify(v)); } catch { /* storage blocked */ }
+}
+export function rememberedExpert(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(EXPERT_KEY) || "{}"); } catch { return {}; }
+}
 
 /* ---------- photos ---------- */
 const urlCache = new Map<string, string>();

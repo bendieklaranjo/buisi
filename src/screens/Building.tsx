@@ -1,55 +1,80 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
+import { FieldInput } from "../components/FieldInput";
 import { TopBar } from "../components/TopBar";
-import { BAUWEISE, GEBAEUDEKLASSEN, KATEGORIEN } from "../domain/fields";
-import type { BuildingInfo } from "../domain/types";
+import { BUILDING_SECTIONS, ELEMENT_FIELD, EXPERT_KEYS, PROJECT_DEFAULT_KEYS, missingBuildingMuss } from "../domain/swissinv";
 import { back, navigate } from "../lib/nav";
-import { saveProject, useData } from "../lib/store";
+import { rememberExpert, saveProject, useData } from "../lib/store";
 
-/** General building information after DIN SPEC 91484, Tabelle 1. */
+const SECTIONS = BUILDING_SECTIONS.filter(s => s.id !== "verortung"); // Verortung is on the address screen
+const NAV = [...SECTIONS.map(s => [s.id, s.title]), ["defaults", "Für alle Bauteile"], ["floors", "Geschosse"]];
+
+/** Step 3: Swiss-Inv "Gebäude" (Allgemeine Gebäudedaten, Weitere Informationen, Kontakte) + defaults for all elements. */
 export function Building({ pid }: { pid: string }) {
   const p = useData().projects[pid];
-  const [i, setI] = useState<BuildingInfo>({ basements: 0, ...(p?.info ?? {}) });
+  const [b, setB] = useState<Record<string, string>>(() => ({ ...(p?.building ?? {}) }));
+  const [d, setD] = useState<Record<string, string>>(() => ({ ...(p?.defaults ?? {}) }));
+  const [floorsAbove, setFloorsAbove] = useState(String(p?.info.floorsAbove ?? ""));
+  const [basements, setBasements] = useState(String(p?.info.basements ?? 0));
   if (!p) return null;
-  const set = (k: keyof BuildingInfo) => (e: { target: { value: string } }) => setI({ ...i, [k]: e.target.value });
-  const L = ({ id, en, de, muss, children }: { id: string; en: string; de: string; muss?: boolean; children: ReactNode }) => (
-    <div className="field"><label htmlFor={id}>{en} <span className="de">{de}</span>{muss && <span className="req muss">Muss</span>}</label>{children}</div>
-  );
+  const g = p.gwr;
+  const missing = missingBuildingMuss(b);
+
+  const hints: Record<string, React.ReactNode> = {
+    geschossflaeche: g && (g.garea || g.gebf)
+      ? <>Register: footprint {g.garea ? `${g.garea.toLocaleString("de-CH")} m²` : "–"}{g.gebf ? `, energy reference area (EBF) ${g.gebf.toLocaleString("de-CH")} m²` : ""}. Neither is the SIA 416 floor area, but they help estimate it.</>
+      : undefined,
+    vollgeschosse: g?.gastw ? <>Register: {g.gastw} storeys above ground. The register may include attic storeys; Swiss-Inv counts full storeys only.</> : undefined,
+    gebaeudevolumen: b.gebaeudevolumen && p.buildingSuggested.gebaeudevolumen === b.gebaeudevolumen ? <>From the register. Check which standard (SIA 416 or 116) it was measured to.</> : undefined,
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    p.info = {
-      ...i,
-      floorsAbove: Math.max(1, Math.min(60, parseInt(String(i.floorsAbove), 10) || 1)),
-      basements: Math.max(0, Math.min(6, parseInt(String(i.basements), 10) || 0)),
-    };
+    p.building = b; p.defaults = d;
+    p.info = { floorsAbove: Math.max(1, Math.min(60, parseInt(floorsAbove, 10) || 1)), basements: Math.max(0, Math.min(6, parseInt(basements, 10) || 0)) };
+    rememberExpert(Object.fromEntries(EXPERT_KEYS.map(k => [k, b[k] ?? ""])));
     saveProject(p);
     navigate({ name: "floors", pid });
   };
-  const opts = (arr: string[]) => [<option key="" value="">Select…</option>, ...arr.map(a => <option key={a}>{a}</option>)];
 
   return (
     <>
       <TopBar title={p.name} onBack={back} />
+      <nav className="section-nav wrap" aria-label="Sections">
+        {NAV.map(([id, t]) => <a key={id} href={"#s-" + id} onClick={ev => { ev.preventDefault(); document.getElementById("s-" + id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{t}</a>)}
+      </nav>
       <main className="wrap">
-        <div className="stack" style={{ gap: 4 }}><span className="eyebrow">Step 3 of 3 · DIN SPEC 91484, Tabelle 1</span><h2>General building information</h2></div>
+        <div className="stack" style={{ gap: 4 }}><span className="eyebrow">Step 3 of 3 · Swiss-Inv · Gebäude</span><h2>Building information</h2>
+          <p className={"small" + (missing.length ? "" : " muted")} style={missing.length ? { color: "var(--warn)" } : undefined}>
+            {missing.length ? `${missing.length} required (Muss) field${missing.length > 1 ? "s" : ""} still empty – marked MUSS below.` : "All required building fields are filled."}</p>
+        </div>
         <form className="stack" onSubmit={submit}>
-          {L({ id: "kat", en: "Building category", de: "Bauwerkskategorie", muss: true, children: <><input id="kat" type="text" list="katl" value={i.kat ?? ""} onChange={set("kat")} /><datalist id="katl">{KATEGORIEN.map(k => <option key={k} value={k} />)}</datalist></> })}
-          {L({ id: "ort", en: "Location", de: "Ort", muss: true, children: <input id="ort" type="text" value={i.ort ?? ""} onChange={set("ort")} /> })}
-          {L({ id: "bauweise", en: "Construction method", de: "Bauweise/-art", muss: true, children: <select id="bauweise" value={i.bauweise ?? ""} onChange={set("bauweise")}>{opts(BAUWEISE)}</select> })}
-          <div className="grid2">
-            {L({ id: "baujahr", en: "Year built", de: "Baujahr", children: <input id="baujahr" type="number" inputMode="numeric" value={i.baujahr ?? ""} onChange={set("baujahr")} /> })}
-            {L({ id: "gk", en: "Building class", de: "Gebäudeklasse", children: <select id="gk" value={i.gk ?? ""} onChange={set("gk")}>{opts(GEBAEUDEKLASSEN)}</select> })}
-          </div>
-          <div className="grid2">
-            {L({ id: "bri", en: "Gross volume m³", de: "BRI", children: <input id="bri" type="number" inputMode="decimal" value={i.bri ?? ""} onChange={set("bri")} /> })}
-            {L({ id: "bgf", en: "Gross floor area m²", de: "BGF", children: <input id="bgf" type="number" inputMode="decimal" value={i.bgf ?? ""} onChange={set("bgf")} /> })}
-          </div>
-          {L({ id: "nutzung", en: "Type of use", de: "Nutzungsart", muss: true, children: <input id="nutzung" type="text" list="katl" value={i.nutzung ?? ""} onChange={set("nutzung")} /> })}
-          {L({ id: "umbau", en: "Past alterations", de: "Umbaumaßnahmen", muss: true, children: <textarea id="umbau" value={i.umbau ?? ""} onChange={set("umbau")} /> })}
-          <div className="grid2">
-            <div className="field"><label htmlFor="fa">Floors above ground</label><input id="fa" type="number" min={1} max={60} required inputMode="numeric" value={i.floorsAbove ?? ""} onChange={set("floorsAbove")} /></div>
-            <div className="field"><label htmlFor="fb">Basement floors</label><input id="fb" type="number" min={0} max={6} inputMode="numeric" value={i.basements ?? 0} onChange={set("basements")} /></div>
-          </div>
-          <p className="small muted">BRI and BGF according to DIN 277, building class according to MBO § 2 Abs. 3, category and use according to HOAI Anlage 10.2.</p>
+          {SECTIONS.map(s => (
+            <section key={s.id} id={"s-" + s.id} className="stack form-section">
+              <h3 className="section-h">{s.title}</h3>
+              {s.fields.map(def => (
+                <FieldInput key={def.key} def={def} value={b[def.key] ?? ""} hint={hints[def.key]}
+                  suggested={!!b[def.key] && p.buildingSuggested[def.key] === b[def.key]}
+                  onChange={v => setB({ ...b, [def.key]: v })} />
+              ))}
+            </section>
+          ))}
+
+          <section id="s-defaults" className="stack form-section">
+            <h3 className="section-h">Für alle Bauteile</h3>
+            <p className="small muted">Usually the same for every element of this building. Set them once; each new element starts with these values and you can still change them per element.</p>
+            {PROJECT_DEFAULT_KEYS.map(k => (
+              <FieldInput key={k} def={{ ...ELEMENT_FIELD[k], en: ELEMENT_FIELD[k].en?.replace(" – default from the building", "") }} value={d[k] ?? ""} onChange={v => setD({ ...d, [k]: v })} />
+            ))}
+          </section>
+
+          <section id="s-floors" className="stack form-section">
+            <h3 className="section-h">Geschosse für das Inventar</h3>
+            <p className="small muted">Used by the app to list floors; not part of Swiss-Inv.{g?.gastw ? ` The register lists ${g.gastw} storeys above ground.` : ""}</p>
+            <div className="grid2">
+              <div className="field"><label htmlFor="fa">Floors above ground</label><input id="fa" type="number" min={1} max={60} required inputMode="numeric" value={floorsAbove} onChange={e => setFloorsAbove(e.target.value)} /></div>
+              <div className="field"><label htmlFor="fb">Basement floors</label><input id="fb" type="number" min={0} max={6} inputMode="numeric" value={basements} onChange={e => setBasements(e.target.value)} /></div>
+            </div>
+          </section>
           <div className="footer"><button className="btn primary" type="submit">Start inventory</button></div>
         </form>
       </main>

@@ -17,7 +17,7 @@ export function AddRoom({ pid, floor }: { pid: string; floor: number }) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const label = use === "OTH" ? other.trim() || "Other" : USES.find(u => u[1] === use)![0];
-    const r: Room = { id: nid(), floor, name: name.trim(), useCode: code, useLabel: label, tag, detections: [], createdAt: Date.now() };
+    const r: Room = { id: nid(), floor, name: name.trim(), useCode: code, useLabel: label, tag, createdAt: Date.now() };
     p.rooms.push(r);
     saveProject(p);
     navigate({ name: "room", pid, roomId: r.id }, true);

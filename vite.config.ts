@@ -9,8 +9,4 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 export default defineConfig(({ mode }) => ({
   base: process.env.BASE_PATH || "/",
   plugins: [react(), ...(mode === "phone" ? [basicSsl()] : [])],
-  server: {
-    // AI requests go to the local proxy (npm run ai) so your API key never reaches the browser.
-    proxy: { "/api": "http://localhost:8787" },
-  },
 }));

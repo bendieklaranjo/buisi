@@ -1,50 +1,45 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { DimensionSketch } from "../components/DimensionSketch";
 import { FieldInput } from "../components/FieldInput";
 import { Icon } from "../components/Icon";
 import { TopBar } from "../components/TopBar";
-import { FIELD_BY_KEY, ELEMENT_FIELDS, MUSS_KEYS, TYPE_DEFAULTS, floorLabel, missingMuss } from "../domain/fields";
-import { AiError, aiStatus, fillFields } from "../lib/ai";
-import { canvasToBlob, cropAround, loadImage, preparePhoto } from "../lib/images";
+import { floorLabel } from "../domain/fields";
+import { CATALOG, EBKP, EBKP_MAIN, ELEMENT_FIELD, ELEMENT_STUFE2, PHOTO_SLOTS, missingElementMuss } from "../domain/swissinv";
+import { applySuggestions, suggestionsAfterChange } from "../lib/elements";
+import { cropAround, loadImage, preparePhoto } from "../lib/images";
 import { back } from "../lib/nav";
 import { decodeMask, maskOverlay } from "../lib/segmentation";
-import { deleteElement, getPhoto, photoUrl, putPhoto, saveElement, saveProject, useData, usePhotoUrl } from "../lib/store";
+import { deleteElement, photoUrl, putPhoto, saveElement, useData, usePhotoUrl } from "../lib/store";
 import { endClock, liveMs, startClock } from "../lib/timing";
 import { toast } from "../lib/toast";
 
-const NUMERIC = ["menge", "hoehe", "breite", "laenge"];
-
+/** Swiss-Inv "Bauteil" Stufe 1 (+ optional Stufe 2) for one element. */
 export function ElementScreen({ pid, elementId }: { pid: string; elementId: string }) {
   const { projects, elements } = useData();
   const p = projects[pid];
   const e = elements[elementId];
   const r = p?.rooms.find(x => x.id === e?.roomId);
   const [fields, setFields] = useState<Record<string, string>>(() => ({ ...(e?.fields ?? {}) }));
+  const [group, setGroup] = useState(() => (e?.fields.ebkp ?? "").charAt(0));
   const [clock, setClock] = useState("0:00");
-  const [ai, setAi] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiMsg, setAiMsg] = useState(e?.aiNote ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cropRef = useRef<HTMLCanvasElement>(null);
-  const roomImg = useRef<HTMLImageElement | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   // time-study clock runs while this screen is open
   useEffect(() => {
     if (!e) return;
     startClock(e.id);
     const t = setInterval(() => { const s = Math.floor(liveMs(e.id) / 1000); setClock(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`); }, 1000);
-    return () => { clearInterval(t); endClock(); abortRef.current?.abort(); };
+    return () => { clearInterval(t); endClock(); };
   }, [e?.id]);
 
-  useEffect(() => { void aiStatus().then(setAi); }, []);
-
-  // crop of the room photo around the outline
+  // crop of the room photo with the outline
   useEffect(() => {
     if (!e?.box || !r?.photoId) return;
     let live = true;
     void (async () => {
       const url = await photoUrl(r.photoId!); if (!url) return;
-      const img = await loadImage(url); if (!live) return; roomImg.current = img;
+      const img = await loadImage(url); if (!live) return;
       const crop = cropAround(img, e.box!); const cv = cropRef.current; if (!cv) return;
       cv.width = crop.canvas.width; cv.height = crop.canvas.height;
       const ctx = cv.getContext("2d")!; ctx.drawImage(crop.canvas, 0, 0);
@@ -58,57 +53,32 @@ export function ElementScreen({ pid, elementId }: { pid: string; elementId: stri
   }, [e?.id, r?.photoId]);
 
   if (!p || !e) return null;
-  const assisted = e.timing.mode === "assisted";
-  const isAi = (k: string) => e.aiFields[k] !== undefined && e.aiFields[k] === (fields[k] ?? "") && (fields[k] ?? "") !== "";
-  const missing = missingMuss(fields).length;
+  const mode = e.timing.mode;
+  const isSug = (k: string) => e.suggested[k] !== undefined && e.suggested[k] === (fields[k] ?? "") && (fields[k] ?? "") !== "";
+  const missing = missingElementMuss(fields, e.photoIds.length);
 
   const change = (k: string, v: string) => {
     const next = { ...fields, [k]: v };
-    if (k === "elementType" && assisted) {
-      for (const [dk, dv] of Object.entries(TYPE_DEFAULTS[v] ?? {})) if (!String(next[dk] ?? "").trim()) { next[dk] = dv; e.aiFields[dk] = dv; }
-    }
+    const changed = applySuggestions(next, e.suggested, suggestionsAfterChange(k, v, mode));
+    if (k === "ebkp" && v) setGroup(v.charAt(0));
+    if (changed.includes("ebkp")) setGroup((next.ebkp ?? "").charAt(0));
     setFields(next);
     e.fields = next; saveElement(e);
   };
 
-  const addPhotos = async (files: FileList | null) => {
+  const addPhotos = async (files: FileList | null, slot?: number) => {
     if (!files?.length) return;
     toast(files.length > 1 ? `Saving ${files.length} photos…` : "Saving photo…");
-    for (const f of Array.from(files)) { const ph = await preparePhoto(f, 1600); e.photoIds.push(await putPhoto(ph.blob)); }
+    try {
+      for (const f of Array.from(files)) {
+        const id = await putPhoto((await preparePhoto(f, 1600)).blob);
+        if (slot !== undefined && slot < e.photoIds.length) e.photoIds[slot] = id; else e.photoIds.push(id);
+        slot = undefined;
+      }
+    } catch (err) { toast((err as Error).message); }
     saveElement(e);
   };
   const removePhoto = (i: number) => { e.photoIds.splice(i, 1); saveElement(e); };
-
-  const runAi = async () => {
-    setAiBusy(true); setAiMsg("Looking at the element… usually 10–60 seconds.");
-    const t0 = Date.now(); const ctl = new AbortController(); abortRef.current = ctl;
-    try {
-      const imgs: Blob[] = [];
-      if (e.box && roomImg.current) imgs.push(await canvasToBlob(cropAround(roomImg.current, e.box).canvas));
-      for (const id of e.photoIds.slice(0, 5 - imgs.length)) { const b = await getPhoto(id); if (b) imgs.push(b); }
-      if (!imgs.length) { setAiMsg("Add at least one photo of the element first."); return; }
-      const known = Object.fromEntries(Object.entries(fields).filter(([k, v]) => String(v).trim() && !isAi(k)));
-      const res = await fillFields(imgs, !!(e.box && roomImg.current), known, p, r, ctl.signal);
-      const next = { ...fields }; let n = 0;
-      for (const def of ELEMENT_FIELDS) {
-        const raw = res.fields?.[def.key];
-        if (raw === undefined || raw === null || String(raw).trim() === "") continue;
-        if (String(next[def.key] ?? "").trim() && !isAi(def.key)) continue; // never overwrite what the person typed
-        let v = String(raw).trim();
-        if (NUMERIC.includes(def.key)) { const num = parseFloat(v.replace(",", ".")); if (isNaN(num)) continue; v = String(def.key === "menge" ? num : Math.round(num)); }
-        next[def.key] = v; e.aiFields[def.key] = v; n++;
-      }
-      setFields(next);
-      e.fields = next; e.aiNote = res.note ? "AI note: " + String(res.note).slice(0, 240) : "";
-      e.timing.aiUsed = true; e.timing.aiCount++; e.timing.aiFieldsFilled = n;
-      setAiMsg(e.aiNote ?? ""); toast(`${n} fields filled. Check the blue ones.`);
-    } catch (err) {
-      setAiMsg(err instanceof AiError ? err.message : "The AI request failed.");
-    } finally {
-      e.timing.aiMs += Date.now() - t0; saveElement(e);
-      setAiBusy(false); abortRef.current = null;
-    }
-  };
 
   const save = (ev: FormEvent) => {
     ev.preventDefault();
@@ -116,61 +86,139 @@ export function ElementScreen({ pid, elementId }: { pid: string; elementId: stri
     endClock(); // books the running time into e.timing.activeMs
     if (e.status !== "saved") {
       e.status = "saved"; e.savedAt = Date.now(); e.timing.firstSavedMs = e.timing.activeMs;
-      const keys = Object.keys(e.aiFields);
-      e.timing.aiFieldsKept = keys.filter(k => e.aiFields[k] === (e.fields[k] ?? "") && e.fields[k]).length;
-      e.timing.corrections = keys.filter(k => e.aiFields[k] !== (e.fields[k] ?? "")).length;
-      e.timing.mussFilled = MUSS_KEYS.length - missingMuss(e.fields).length;
+      const keys = Object.keys(e.suggested);
+      e.timing.suggestionsKept = keys.filter(k => e.suggested[k] && e.suggested[k] === (e.fields[k] ?? "")).length;
+      e.timing.corrections = keys.filter(k => e.suggested[k] !== (e.fields[k] ?? "")).length;
+      const miss = missingElementMuss(e.fields, e.photoIds.length).length;
+      e.timing.mussTotal = MUSS_COUNT; e.timing.mussFilled = MUSS_COUNT - miss;
     }
-    saveElement(e); toast("Element saved"); back();
+    saveElement(e); toast(missing.length ? `Saved – ${missing.length} required fields still open` : "Element saved"); back();
   };
 
-  const remove = () => {
-    endClock();
-    const d = r?.detections.find(d => d.usedBy === e.id);
-    if (d && p) { d.usedBy = null; saveProject(p); }
-    deleteElement(e.id); back();
-  };
+  const remove = () => { endClock(); deleteElement(e.id); back(); };
 
-  const f = (k: string) => <FieldInput key={k} def={FIELD_BY_KEY[k]} value={fields[k] ?? ""} aiFilled={isAi(k)} onChange={v => change(k, v)} />;
+  const F = (k: string, extra?: { hint?: React.ReactNode; readOnly?: boolean }) => (
+    <FieldInput key={k} def={ELEMENT_FIELD[k]} value={fields[k] ?? ""} suggested={isSug(k)} onChange={v => change(k, v)} {...extra} />
+  );
+  const groupCodes = EBKP.filter(([c]) => !group || c.startsWith(group));
+  const ebkpDef = { ...ELEMENT_FIELD.ebkp, options: groupCodes.map(([c]) => c) };
 
   return (
     <>
-      <TopBar title={fields.elementType || "New element"} onBack={back}><span className="timer" aria-label="Active time on this element">{clock}</span></TopBar>
+      <TopBar title={fields.bezeichnung || "New element"} onBack={back}><span className="timer" aria-label="Active time on this element">{clock}</span></TopBar>
       <main className="wrap">
-        <div className="row"><span className="swatch" style={{ background: e.color }} /><span className="tag">{r?.tag}</span><span className="small muted">{p.name}</span><span className="pill" style={{ marginLeft: "auto" }}>{e.timing.mode}</span></div>
+        <div className="row"><span className="swatch" style={{ background: e.color }} /><span className="tag">{fields.bauteilId}</span><span className="small muted">{r?.name || r?.tag} · {floorLabel(r?.floor ?? 0)}</span><span className="pill" style={{ marginLeft: "auto" }}>{mode}</span></div>
         {e.box && <canvas ref={cropRef} className="crop" aria-label="Element outline" />}
 
-        <div className="stack" style={{ gap: 8 }}>
-          <div className="section-title"><h3>Images of the element from different angles</h3><span className="req">Sollte</span></div>
+        {/* ---------- photos (Liste der vorhandenen Fotos, Muss: min. 3) ---------- */}
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="section-title"><h3>Fotos</h3><span className="req muss">Muss · mind. 3</span></div>
           <div className="thumbs">
-            {e.photoIds.map((id, i) => <Thumb key={id} id={id} i={i} onRemove={() => removePhoto(i)} />)}
-            <label className="addthumb"><span><Icon name="cam" size={22} /><br />Add photo</span>
-              <input type="file" accept="image/*" capture="environment" multiple aria-label="Add element photo" onChange={ev => addPhotos(ev.target.files)} /></label>
+            {PHOTO_SLOTS.map((label, i) => e.photoIds[i]
+              ? <Thumb key={e.photoIds[i]} id={e.photoIds[i]} label={label} onRemove={() => removePhoto(i)} />
+              : <AddPhoto key={label} label={label} onFiles={f => addPhotos(f)} disabled={i > e.photoIds.length} />)}
+            {e.photoIds.slice(3).map((id, j) => <Thumb key={id} id={id} label={`Foto ${j + 4}`} onRemove={() => removePhoto(j + 3)} />)}
+            {e.photoIds.length >= 3 && <AddPhoto label="Weiteres Foto" onFiles={f => addPhotos(f)} />}
           </div>
-          <p className="small muted">Close-ups of labels, fittings, connections and damage help the vision model and the next user.</p>
-        </div>
-
-        {assisted && ai && (
-          <div className="ai-box">
-            <div><h3>Fill fields with AI</h3><p className="small muted">Reads the outline and your photos. Blue fields came from AI or defaults and stay blue until you check or change them.</p></div>
-            <div className="row">
-              <button className="btn sage grow" disabled={aiBusy} onClick={runAi}><Icon name="spark" /> {e.timing.aiCount ? "Fill again" : "Fill fields"}</button>
-              {aiBusy && <button className="btn ghost" onClick={() => abortRef.current?.abort()}>Stop</button>}
-            </div>
-            <div className={"status" + (aiBusy ? " busy" : "")}>{aiMsg}</div>
-          </div>
-        )}
+          <p className="small muted">{e.box && mode === "assisted" ? "The outline crop was added as Frontalansicht; replace it with a better photo if you like. " : ""}Photos are compressed to under 1.5 MB.</p>
+        </section>
 
         <form className="stack" onSubmit={save}>
-          <div className="card stack" style={{ gap: 6 }}><span className="eyebrow">Location · Verortung</span><div className="tag">{[p.name, floorLabel(r?.floor ?? 0), r?.tag].join(" / ")}</div></div>
-          {f("elementType")}
-          <div className="grid2">{f("ebkp")}{f("material")}</div>
-          {f("funktion")}
-          <div className="grid2">{f("menge")}{f("einheit")}</div>
-          <div className="grid3">{f("hoehe")}{f("breite")}{f("laenge")}</div>
-          {["hersteller", "verbindung", "zustand", "schadstoff", "reuse", "weitere"].map(f)}
-          <p className="small" style={{ color: missing ? "var(--warn)" : "var(--muted)" }}>
-            {missing ? `${missing} required (Muss) field${missing > 1 ? "s" : ""} still empty.` : "All required fields are filled."}
+          {/* ---------- Identifikation ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Identifikation</h3>
+            <div className="field">
+              <FieldInput def={ELEMENT_FIELD.bezeichnung} list="catalog" value={fields.bezeichnung ?? ""} suggested={isSug("bezeichnung")} onChange={v => change("bezeichnung", v)}
+                hint={mode === "assisted" ? "Pick a common element from the list to fill eBKP, IFC, unit and exposure automatically." : undefined} />
+              <datalist id="catalog">{CATALOG.map(c => <option key={c.name} value={c.name} />)}</datalist>
+            </div>
+            <div className="field">
+              <span className="flabel">Funktion im Gebäude <span className="de">Function – eBKP main group</span></span>
+              <div className="chips" role="group" aria-label="Function in the building">
+                {EBKP_MAIN.map(([l, name, sub]) => (
+                  <button type="button" key={l} className="chip" aria-pressed={group === l} title={sub} onClick={() => setGroup(group === l ? "" : l)}>
+                    <b>{l}</b> {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid-ebkp">
+              <FieldInput def={ebkpDef} value={fields.ebkp ?? ""} suggested={isSug("ebkp")} onChange={v => change("ebkp", v)} />
+              {F("ebkpText", { readOnly: true })}
+            </div>
+            {F("ifc")}
+            <div className="grid2">{F("bauteilId")}{F("bestandteilVon")}</div>
+          </section>
+
+          {/* ---------- Verortung ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Verortung</h3>
+            {F("verortung")}
+            {F("koordinaten")}
+          </section>
+
+          {/* ---------- Menge ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Menge</h3>
+            <div className="grid2">{F("menge")}{F("einheit")}</div>
+          </section>
+
+          {/* ---------- Abmessungen ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Abmessungen <span className="small muted">in cm</span></h3>
+            <div className="dims">
+              <DimensionSketch />
+              <div className="stack" style={{ gap: 10, flex: 1, minWidth: 0 }}>{F("hoehe")}{F("breite")}{F("tiefe")}</div>
+            </div>
+            <p className="small muted">For linear or round elements (beams, pipes, railings) use length or diameter instead.</p>
+            <div className="grid2">{F("laenge")}{F("durchmesser")}</div>
+            {F("weitereDimension")}
+          </section>
+
+          {/* ---------- Beschreibung ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Beschreibung</h3>
+            {F("herstellerin")}
+            {F("materialien")}
+          </section>
+
+          {/* ---------- Potenzial ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Potenzial</h3>
+            {F("schadstoffbelastet")}
+            {F("schadstoffverdacht")}
+            {F("zustand")}
+            {F("zustandText")}
+            {F("verbindung")}
+            {F("potenzial", { hint: "A later version will suggest this automatically from comparable elements." })}
+            {F("potenzialBegruendung")}
+            <label className="check big">
+              <input type="checkbox" checked={fields.zielprojektBekannt === "ja"} onChange={ev => change("zielprojektBekannt", ev.target.checked ? "ja" : "nein")} />
+              <span>Zielprojekt bekannt <span className="de">Destination project known</span> <span className="req">Zusatz</span></span>
+            </label>
+            {fields.zielprojektBekannt === "ja" && F("zielprojekt")}
+          </section>
+
+          {/* ---------- Anhänge ---------- */}
+          <section className="stack form-section">
+            <h3 className="section-h">Anhänge</h3>
+            {F("dokumente")}
+            {F("dokumenteText")}
+          </section>
+
+          {/* ---------- Stufe 2 ---------- */}
+          <details className="stufe2">
+            <summary><h3 className="section-h">Bauteil Stufe 2</h3><span className="small muted">More detail – mostly optional (Kann). Verfügbarkeit is required.</span></summary>
+            {ELEMENT_STUFE2.map(s => (
+              <section key={s.id} className="stack form-section">
+                <h4 className="section-h sub">{s.title}</h4>
+                {s.fields.map(d => F(d.key))}
+              </section>
+            ))}
+          </details>
+
+          <p className="small" style={{ color: missing.length ? "var(--warn)" : "var(--muted)" }}>
+            {missing.length ? `Still missing (Muss): ${missing.join(", ")}` : "All required fields are filled."}
           </p>
           <div className="footer"><button className="btn primary" type="submit"><Icon name="save" /> Save element</button></div>
         </form>
@@ -184,7 +232,24 @@ export function ElementScreen({ pid, elementId }: { pid: string; elementId: stri
   );
 }
 
-function Thumb({ id, i, onRemove }: { id: string; i: number; onRemove: () => void }) {
+const MUSS_COUNT = missingElementMuss({}, 0).length;
+
+function Thumb({ id, label, onRemove }: { id: string; label: string; onRemove: () => void }) {
   const url = usePhotoUrl(id);
-  return <div className="thumb">{url && <img src={url} alt={`Element photo ${i + 1}`} />}<button onClick={onRemove} aria-label={`Remove photo ${i + 1}`}>×</button></div>;
+  return (
+    <figure className="thumb-slot">
+      <div className="thumb">{url && <img src={url} alt={label} />}<button type="button" onClick={onRemove} aria-label={`Remove ${label}`}>×</button></div>
+      <figcaption>{label}</figcaption>
+    </figure>
+  );
+}
+
+function AddPhoto({ label, onFiles, disabled }: { label: string; onFiles: (f: FileList | null) => void; disabled?: boolean }) {
+  return (
+    <figure className="thumb-slot">
+      <label className={"addthumb" + (disabled ? " dim" : "")}><span><Icon name="cam" size={22} /></span>
+        <input type="file" accept="image/*,.heic,.heif" capture="environment" multiple aria-label={`Add ${label}`} onChange={ev => { onFiles(ev.target.files); ev.target.value = ""; }} /></label>
+      <figcaption>{label}</figcaption>
+    </figure>
+  );
 }

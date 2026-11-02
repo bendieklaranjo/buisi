@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BuildingIllustration } from "../components/BuildingIllustration";
 import { TopBar } from "../components/TopBar";
-import { exportCSV, exportPDF, exportXLSX, inventoryRows } from "../lib/export";
+import { elementTable, exportCSV, exportPDF, exportXLSX, exportZIP } from "../lib/export";
 import { back, navigate } from "../lib/nav";
 import { elementsOf, useData } from "../lib/store";
 
@@ -10,7 +10,7 @@ export function ExportScreen({ pid }: { pid: string }) {
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState("");
   if (!p) return null;
-  const rows = inventoryRows(p);
+  const rows = elementTable(p).slice(1);
   const open = elementsOf(p.id).filter(e => e.status !== "saved").length;
 
   const run = async (fn: () => void | Promise<void>) => {
@@ -38,11 +38,12 @@ export function ExportScreen({ pid }: { pid: string }) {
         <h2>Export to</h2>
         <p className="muted">{rows.length} saved element{rows.length === 1 ? "" : "s"} in {p.rooms.length} room{p.rooms.length === 1 ? "" : "s"}.{open ? ` ${open} open element${open > 1 ? "s" : ""} will be left out.` : ""}</p>
         <div className="bigchoice">
-          <button className="btn sage" disabled={!rows.length} onClick={() => run(() => exportPDF(p))}>PDF <span className="small">report</span></button>
+          <button className="btn sage" disabled={!rows.length} onClick={() => run(() => exportZIP(p))}>Excel + Fotos <span className="small">.zip</span></button>
           <button className="btn sage" disabled={!rows.length} onClick={() => run(() => exportXLSX(p))}>Excel <span className="small">.xlsx</span></button>
+          <button className="btn sage" disabled={!rows.length} onClick={() => run(() => exportPDF(p))}>PDF <span className="small">report</span></button>
           <button className="btn sage" disabled={!rows.length} onClick={() => run(() => exportCSV(p))}>CSV <span className="small">.csv</span></button>
         </div>
-        <p className="small muted">Excel includes three sheets: inventory, building information and time study. Reuse marketplace upload is planned.</p>
+        <p className="small muted">Excel follows the Swiss-Inv data structure (v1.0-2024): sheets Gebäude and Bauteile, plus Zusatzfelder for app fields outside Swiss-Inv, and Zeitstudie. The ZIP adds all photos, named as listed in the Excel file. PDF design comes later.</p>
         <div className={"status" + (msg === "Preparing file…" ? " busy" : "")}>{msg}</div>
       </main>
     </>
