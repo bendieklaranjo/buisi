@@ -1,7 +1,7 @@
 {
   "name": "swissinv-beta",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "SwissInv-Beta \u2013 reuse inventory following the Swiss-Inv data structure (human-in-the-loop prototype)",
   "scripts": {

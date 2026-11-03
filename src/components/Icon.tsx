@@ -1,4 +1,7 @@
 const PATHS: Record<string, string> = {
+  home: "M4 11l8-7 8 7 M6 9.5V20h12V9.5 M10 20v-6h4v6",
+  globe: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M3 12h18 M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
+  next: "M9 5l7 7-7 7",
   back: "M15 5l-7 7 7 7",
   save: "M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6",
   check: "M4 12.5l5 5L20 6.5",

@@ -2,18 +2,20 @@
  * Creating elements and computing suggested values ("auto-fill").
  *
  * Both modes: values that are derived, not guessed – Bauteil ID, Verortung im Gebäude,
- * eBKP text for a chosen eBKP number, and the building-wide defaults (Verfügbarkeit,
- * Dokumente, Status).
- * Assisted mode only: suggestions from the element catalogue (eBKP, IFC, unit, quantity,
- * exposure) and Einbaujahr from the building's history. Manual mode is the baseline
- * for the time study, so it gets no catalogue suggestions.
+ * the building-wide defaults (Verfügbarkeit, Status, Dokumente), and from the element type
+ * (CRB rule set) the eBKP number, eBKP name, eBKP-H element and IFC entity + type (and the eBKP name from a chosen
+ * eBKP number).
+ * Assisted mode only: from the element type also unit, quantity, exposure and a default
+ * name, plus Einbaujahr from the building's history. Manual mode is the baseline.
  */
 import { MASK_COLORS, verortungText } from "../domain/fields";
-import { CATALOG_BY_NAME, EBKP_TEXT, EXPOSITION, PROJECT_DEFAULT_KEYS } from "../domain/swissinv";
-import type { Box, Element, Mode, Project, Room, StoredMask } from "../domain/types";
+import { RULE_BY_ID, ebkpName, isOutdoor, unitFor } from "../domain/crb";
+import { EXPOSITION, PROJECT_DEFAULT_KEYS } from "../domain/swissinv";
+import type { Box, Element, Mode, Project, Room } from "../domain/types";
+import { getLang } from "../i18n";
 import { elementsOf, nid, saveElement } from "./store";
 
-export interface FromMask { mask: StoredMask; box: Box | null; taps: number; segStart: number }
+export interface FromBox { box: Box; taps: number; segStart: number }
 
 const INDOOR = EXPOSITION[0], OUTDOOR = EXPOSITION[3];
 
@@ -27,8 +29,8 @@ function nextBauteilId(p: Project, r: Room) {
   return prefix + String(max + 1).padStart(2, "0");
 }
 
-/** Creates a draft element (one inventory row). With `seg` it comes from a confirmed outline. */
-export function createElement(p: Project, r: Room, seg?: FromMask): Element {
+/** Creates a draft element (one inventory row). With `seg` it comes from a box on the room photo. */
+export function createElement(p: Project, r: Room, seg?: FromBox): Element {
   const now = Date.now();
   const derived: Record<string, string> = {
     bauteilId: nextBauteilId(p, r),
@@ -42,7 +44,7 @@ export function createElement(p: Project, r: Room, seg?: FromMask): Element {
   const e: Element = {
     id: nid(), pid: p.id, roomId: r.id, color: MASK_COLORS[elementsOf(p.id, r.id).length % MASK_COLORS.length],
     status: "draft", photoIds: [], fields: { ...derived }, suggested: { ...derived }, createdAt: now, updatedAt: now,
-    mask: seg?.mask, box: seg?.box ?? undefined,
+    box: seg?.box,
     timing: { mode: p.mode, activeMs: seg ? now - seg.segStart : 0, segTaps: seg?.taps ?? 0 },
   };
   saveElement(e);
@@ -55,13 +57,12 @@ export function createElement(p: Project, r: Room, seg?: FromMask): Element {
  */
 export function suggestionsAfterChange(key: string, value: string, mode: Mode): Record<string, string> {
   const out: Record<string, string> = {};
-  if (key === "ebkp" && EBKP_TEXT[value]) out.ebkpText = EBKP_TEXT[value];
-  if (key === "bezeichnung" && mode === "assisted") {
-    const c = CATALOG_BY_NAME[value];
+  if (key === "ebkp" && ebkpName(value, "de")) out.ebkpText = ebkpName(value, "de");
+  if (key === "bauteiltyp") {
+    const c = RULE_BY_ID[value];
     if (c) {
-      out.ebkp = c.ebkp; out.ebkpText = EBKP_TEXT[c.ebkp] ?? "";
-      out.ifc = c.ifc; out.einheit = c.unit; out.menge = "1";
-      out.exposition = c.outdoor ? OUTDOOR : INDOOR;
+      out.ebkp = c.code; out.ebkpText = ebkpName(c.code, "de"); out.ifc = c.ifc; out.ifcTyp = c.ifcType;
+      if (mode === "assisted") { out.bezeichnung = getLang() === "en" ? c.en : c.de; out.einheit = unitFor(c.ifc); out.menge = "1"; out.exposition = isOutdoor(c) ? OUTDOOR : INDOOR; }
     }
   }
   return out;

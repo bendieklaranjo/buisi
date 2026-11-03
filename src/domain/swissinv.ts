@@ -1,7 +1,9 @@
 /**
  * Swiss-Inv data structure (Cirkla, Version 1.0-2024) – the single source of truth for
- * what SwissInv-Beta asks for and exports. Field names, order, "Muss/Kann", value lists and
- * explanations follow the template "41203_Cirkla_Datenstruktur_Swiss_Inv_2024_v1.0.xlsx".
+ * what SwissInv-Beta asks for and exports. Field names (German, `label`), order, "Muss/Kann",
+ * value lists and explanations (`info`) follow the template
+ * "41203_Cirkla_Datenstruktur_Swiss_Inv_2024_v1.0.xlsx". `labelEn` / `infoEn` / `hintEn` are
+ * the English UI texts; stored values and export column names always stay German.
  *
  * Fields marked `extra: true` are NOT part of Swiss-Inv. They are app additions and are
  * exported to a separate "Zusatzfelder" sheet so the Swiss-Inv sheets stay conform.
@@ -13,17 +15,20 @@ export type Kind = "text" | "number" | "year" | "date" | "select" | "multi" | "t
 export interface FieldDef {
   key: string;
   label: string; // official Swiss-Inv field name (German)
-  en?: string; // short English hint
+  labelEn: string;
   req: Req;
   kind: Kind;
   options?: string[];
   unit?: string;
-  info?: string; // "Erläuterungen" from the template
+  info?: string; // "Erläuterungen" from the template (German)
+  infoEn?: string;
+  hint?: string; // short app hint under the field
+  hintEn?: string;
   placeholder?: string;
   extra?: boolean; // app field, not part of Swiss-Inv
 }
 
-export interface Section { id: string; title: string; fields: FieldDef[] }
+export interface Section { id: string; title: string; titleEn: string; fields: FieldDef[] }
 
 /* ---------------------------------------------------------------- lists */
 
@@ -52,7 +57,9 @@ export const VERBINDUNG = [
   "Gesteckt und geklemmt (Kombinationstechniken)", "Verlötet (z.B. bei Metallrohren)", "Verschweisst und verschraubt (Kombinationsverbindung)", "Andere",
 ];
 export const POTENZIAL = ["gut", "mittel", "schlecht", "unbekannt"];
-export const DOKUMENTE = ["Gebäudebeschreibung", "Skizzen", "Pläne", "technischen Datenblätter", "Punktwolke", "3D Modell", "Andere"];
+/** "Keine" is an app addition (not in the Swiss-Inv list) for elements without documents. */
+export const DOKUMENTE_KEINE = "Keine";
+export const DOKUMENTE = [DOKUMENTE_KEINE, "Gebäudebeschreibung", "Skizzen", "Pläne", "technischen Datenblätter", "Punktwolke", "3D Modell", "Andere"];
 export const SCHADSTOFFART = [
   "Asbest", "CO2 (Kohlendioxid)", "CP", "FCKW / HFCKW / FKW", "Feinstaub", "Formaldehyd", "HBCD", "Holzschutzmittel", "Invasive Neophyten",
   "Ionisierende Strahlung", "Kohlenwasserstoffe", "Künstliche Mineralfasern", "Legionellen", "Nikotin", "Nutzungsbedingte Belastungen",
@@ -78,115 +85,108 @@ export const LAGERUNG = [
   "Korrosionsgeschützt lagern (besondere Massnahmen zum Schutz vor Korrosion erforderlich)", "Schwerlasttransport erforderlich (spezialisierter Transport für schwere Bauteile)",
 ];
 
-/** eBKP-H/T Elementgruppen (two-digit level) as listed in the template. */
-export const EBKP: [string, string][] = [
-  ["A01", "Grundstück, Baurecht"], ["B04", "Erschliessung durch Werkleitungen"],
-  ["C01", "Fundament, Bodenplatte"], ["C02", "Wandkonstruktion"], ["C03", "Stützenkonstruktion"], ["C04", "Deckenkonstruktion, Dachkonstruktion"], ["C05", "Ergänzende Leistung zu Konstruktion"],
-  ["D01", "Elektroanlagen"], ["D02", "Gebäudeautomation"], ["D03", "Sicherheitsanlage"], ["D04", "Technische Brandschutzanlage"], ["D05", "Wärmetechnische Anlage"], ["D06", "Kältetechnische Anlage"],
-  ["D07", "Lufttechnische Anlage"], ["D08", "Wassertechnische Anlage"], ["D09", "Abwassertechnische Anlage"], ["D10", "Gastechnische Anlage"], ["D11", "Anlage für Spezialmedien"], ["D12", "Beförderungsanlage"],
-  ["E01", "Äussere Wandbekleidung unter Terrain"], ["E02", "Äussere Wandbekleidung über Terrain"], ["E03", "Elemente in Aussenwand"],
-  ["F01", "Dachhaut"], ["F02", "Element zu Dach"],
-  ["G01", "Trennwand, Innentür, Innentor"], ["G02", "Bodenbelag"], ["G03", "Wandbekleidung"], ["G04", "Deckenbekleidung"], ["G05", "Einbauten, Schutzeinrichtung zu Ausbau"], ["G06", "Ergänzende Leistung zu Ausbau"],
-  ["H01", "Produktionsanlage"], ["H02", "Laboranlage"], ["H03", "Grossküche"], ["H04", "Wäscherei- Reinigungsanlage"], ["H05", "Anlage für Gesundheit"], ["H06", "Anlage für Bildung, Kultur"],
-  ["H07", "Sportanlage, Freizeitanlage"], ["H08", "Anlage für Erholung"], ["H09", "Weitere Nutzungsspezifische Anlage"],
-  ["I01", "Umgebungsgestaltung"], ["I02", "Bauwerk in der Umgebung"], ["I03", "Grünfläche"], ["I04", "Hartfläche"], ["I05", "Technik Umgebung"], ["I06", "Austattung Umgebung"],
-  ["J01", "Mobiliar"], ["J02", "Kleininventar"], ["J03", "Textilien"], ["J04", "Kunst am Bau"],
+/** eBKP-H/T Elementgruppen (two-digit level) as listed in the template, with English names. */
+export const EBKP: [string, string, string][] = [
+  ["A01", "Grundstück, Baurecht", "Site, building rights"], ["B04", "Erschliessung durch Werkleitungen", "Utility connections"],
+  ["C01", "Fundament, Bodenplatte", "Foundation, base slab"], ["C02", "Wandkonstruktion", "Wall structure"], ["C03", "Stützenkonstruktion", "Column structure"],
+  ["C04", "Deckenkonstruktion, Dachkonstruktion", "Floor and roof structure"], ["C05", "Ergänzende Leistung zu Konstruktion", "Additional structural work"],
+  ["D01", "Elektroanlagen", "Electrical systems"], ["D02", "Gebäudeautomation", "Building automation"], ["D03", "Sicherheitsanlage", "Security systems"],
+  ["D04", "Technische Brandschutzanlage", "Fire protection systems"], ["D05", "Wärmetechnische Anlage", "Heating systems"], ["D06", "Kältetechnische Anlage", "Cooling systems"],
+  ["D07", "Lufttechnische Anlage", "Ventilation systems"], ["D08", "Wassertechnische Anlage", "Water and sanitary systems"], ["D09", "Abwassertechnische Anlage", "Wastewater systems"],
+  ["D10", "Gastechnische Anlage", "Gas systems"], ["D11", "Anlage für Spezialmedien", "Special media systems"], ["D12", "Beförderungsanlage", "Lifts and conveyors"],
+  ["E01", "Äussere Wandbekleidung unter Terrain", "External wall cladding below ground"], ["E02", "Äussere Wandbekleidung über Terrain", "External wall cladding above ground"],
+  ["E03", "Elemente in Aussenwand", "Elements in external walls"],
+  ["F01", "Dachhaut", "Roof covering"], ["F02", "Element zu Dach", "Roof elements"],
+  ["G01", "Trennwand, Innentür, Innentor", "Partitions, internal doors and gates"], ["G02", "Bodenbelag", "Floor finishes"], ["G03", "Wandbekleidung", "Wall finishes"],
+  ["G04", "Deckenbekleidung", "Ceiling finishes"], ["G05", "Einbauten, Schutzeinrichtung zu Ausbau", "Built-in fittings, protective fixtures"], ["G06", "Ergänzende Leistung zu Ausbau", "Additional fit-out work"],
+  ["H01", "Produktionsanlage", "Production plant"], ["H02", "Laboranlage", "Laboratory equipment"], ["H03", "Grossküche", "Commercial kitchen"],
+  ["H04", "Wäscherei- Reinigungsanlage", "Laundry and cleaning equipment"], ["H05", "Anlage für Gesundheit", "Healthcare equipment"], ["H06", "Anlage für Bildung, Kultur", "Education and culture equipment"],
+  ["H07", "Sportanlage, Freizeitanlage", "Sports and leisure equipment"], ["H08", "Anlage für Erholung", "Recreation equipment"], ["H09", "Weitere Nutzungsspezifische Anlage", "Other use-specific equipment"],
+  ["I01", "Umgebungsgestaltung", "Landscaping"], ["I02", "Bauwerk in der Umgebung", "External structures"], ["I03", "Grünfläche", "Green areas"],
+  ["I04", "Hartfläche", "Paved areas"], ["I05", "Technik Umgebung", "External services"], ["I06", "Austattung Umgebung", "External furnishings"],
+  ["J01", "Mobiliar", "Furniture"], ["J02", "Kleininventar", "Small inventory"], ["J03", "Textilien", "Textiles"], ["J04", "Kunst am Bau", "Art in architecture"],
 ];
-export const EBKP_TEXT = Object.fromEntries(EBKP);
+export const EBKP_TEXT: Record<string, string> = Object.fromEntries(EBKP.map(e => [e[0], e[1]]));
+export const EBKP_TEXT_EN: Record<string, string> = Object.fromEntries(EBKP.map(e => [e[0], e[2]]));
 
 /** eBKP main groups, shown first as "function in the building". */
-export const EBKP_MAIN: [string, string, string][] = [
-  ["C", "Konstruktion", "Tragstruktur: Wände, Stützen, Decken, Dach"],
-  ["D", "Technik", "Elektro, Heizung, Lüftung, Sanitär, Lifte"],
-  ["E", "Aussenwand", "Fassade, Fenster, Aussentüren"],
-  ["F", "Bedachung", "Dachhaut, Dachelemente"],
-  ["G", "Ausbau", "Innentüren, Trennwände, Böden, Bekleidungen, Einbauten"],
-  ["H", "Nutzungsspezifisch", "Labor, Grossküche, Sport, …"],
-  ["I", "Umgebung", "Aussenanlagen"],
-  ["J", "Ausstattung", "Mobiliar, Kunst am Bau"],
-  ["A", "Grundstück", ""],
-  ["B", "Vorbereitung", "Werkleitungen"],
+export const EBKP_MAIN: { l: string; de: string; en: string }[] = [
+  { l: "C", de: "Konstruktion", en: "Structure" },
+  { l: "D", de: "Technik", en: "Services" },
+  { l: "E", de: "Aussenwand", en: "External wall" },
+  { l: "F", de: "Bedachung", en: "Roof" },
+  { l: "G", de: "Ausbau", en: "Fit-out" },
+  { l: "H", de: "Nutzungsspezifisch", en: "Use-specific" },
+  { l: "J", de: "Ausstattung", en: "Furnishings" },
+  { l: "I", de: "Umgebung", en: "Surroundings" },
 ];
 
-/* ------------------------------------------------- catalogue for suggestions */
-
-export interface CatalogItem { name: string; ebkp: string; ifc: string; unit: string; outdoor?: boolean }
-
-/** Common reusable building elements. Picking one suggests eBKP, IFC entity, unit and exposure. */
-export const CATALOG: CatalogItem[] = [
-  { name: "Innentür", ebkp: "G01", ifc: "IfcDoor", unit: "Stk." },
-  { name: "Systemtrennwand", ebkp: "G01", ifc: "IfcWall", unit: "m2" },
-  { name: "Glastrennwand", ebkp: "G01", ifc: "IfcWall", unit: "m2" },
-  { name: "Fenster", ebkp: "E03", ifc: "IfcWindow", unit: "Stk.", outdoor: true },
-  { name: "Aussentür", ebkp: "E03", ifc: "IfcDoor", unit: "Stk.", outdoor: true },
-  { name: "Fassadenplatte", ebkp: "E02", ifc: "IfcPlate", unit: "m2", outdoor: true },
-  { name: "Sonnenschutz / Storen", ebkp: "E03", ifc: "IfcShadingDevice", unit: "Stk.", outdoor: true },
-  { name: "Dachziegel", ebkp: "F01", ifc: "IfcCovering", unit: "m2", outdoor: true },
-  { name: "Dachfenster", ebkp: "F02", ifc: "IfcWindow", unit: "Stk.", outdoor: true },
-  { name: "Heizkörper", ebkp: "D05", ifc: "IfcSpaceHeater", unit: "Stk." },
-  { name: "Leuchte", ebkp: "D01", ifc: "IfcLightFixture", unit: "Stk." },
-  { name: "Lüftungsgerät", ebkp: "D07", ifc: "IfcUnitaryEquipment", unit: "Stk." },
-  { name: "Lavabo", ebkp: "D08", ifc: "IfcSanitaryTerminal", unit: "Stk." },
-  { name: "WC", ebkp: "D08", ifc: "IfcSanitaryTerminal", unit: "Stk." },
-  { name: "Armatur", ebkp: "D08", ifc: "IfcValve", unit: "Stk." },
-  { name: "Parkett", ebkp: "G02", ifc: "IfcCovering", unit: "m2" },
-  { name: "Bodenplatten", ebkp: "G02", ifc: "IfcCovering", unit: "m2" },
-  { name: "Wandbekleidung", ebkp: "G03", ifc: "IfcCovering", unit: "m2" },
-  { name: "Akustikdecke / Deckenplatten", ebkp: "G04", ifc: "IfcCovering", unit: "m2" },
-  { name: "Einbauschrank", ebkp: "G05", ifc: "IfcFurniture", unit: "Stk." },
-  { name: "Kücheneinrichtung", ebkp: "G05", ifc: "IfcFurniture", unit: "Stk." },
-  { name: "Geländer / Handlauf", ebkp: "G05", ifc: "IfcRailing", unit: "m1" },
-  { name: "Stahlträger", ebkp: "C04", ifc: "IfcBeam", unit: "Stk." },
-  { name: "Holzbalken", ebkp: "C04", ifc: "IfcBeam", unit: "Stk." },
-  { name: "Stütze", ebkp: "C03", ifc: "IfcColumn", unit: "Stk." },
-  { name: "Mobiliar", ebkp: "J01", ifc: "IfcFurniture", unit: "Stk." },
-];
-export const CATALOG_BY_NAME = Object.fromEntries(CATALOG.map(c => [c.name, c]));
+/* Element types (generate eBKP + IFC) come from the CRB rule set – see crb.ts. */
 
 /* ------------------------------------------------------------- GEBÄUDE */
 
 export const BUILDING_SECTIONS: Section[] = [
   {
-    id: "verortung", title: "Verortung", fields: [
-      { key: "egrid", label: "Katasternummer Grundstück", en: "Parcel number (EGRID)", req: "muss", kind: "text", placeholder: "CH579178879912", info: "Katasternummer (national), siehe map.geo.admin.ch, GWR: Gebäudestatus. z.B.: CH579178879912" },
-      { key: "egid", label: "Gebäudenummer", en: "Building number (EGID)", req: "muss", kind: "text", placeholder: "302061460", info: "Gebäudenummer (national), siehe map.geo.admin.ch, GWR: Gebäudestatus. z.B.: 302061460" },
-      { key: "adresse", label: "Adresse", en: "Street", req: "muss", kind: "text", info: "Strasse Quellobjekt, z.B.: Musterstrasse" },
-      { key: "hausnummer", label: "Hausnummer", en: "No.", req: "muss", kind: "text", info: "Hausnummer Quellobjekt, z.B.: 12" },
-      { key: "plz", label: "PLZ", en: "Postcode", req: "muss", kind: "text", info: "PLZ Quellobjekt, z.B.: 8008" },
-      { key: "ort", label: "Ort", en: "Town", req: "muss", kind: "text", info: "Ortsname Quellobjekt, z.B.: Basel" },
-      { key: "land", label: "Land", en: "Country", req: "kann", kind: "text", info: "Landsname Quellobjekt, z.B.: Schweiz" },
+    id: "verortung", title: "Gebäude finden", titleEn: "Find the building", fields: [
+      { key: "egrid", label: "Katasternummer Grundstück", labelEn: "Parcel number (EGRID)", req: "muss", kind: "text", placeholder: "CH579178879912",
+        info: "Katasternummer (national), siehe map.geo.admin.ch, GWR: Gebäudestatus. z.B.: CH579178879912", infoEn: "National parcel number, see map.geo.admin.ch, GWR layer. e.g. CH579178879912" },
+      { key: "egid", label: "Gebäudenummer", labelEn: "Building number (EGID)", req: "muss", kind: "text", placeholder: "302061460",
+        info: "Gebäudenummer (national), siehe map.geo.admin.ch, GWR: Gebäudestatus. z.B.: 302061460", infoEn: "National building number, see map.geo.admin.ch, GWR layer. e.g. 302061460" },
+      { key: "adresse", label: "Adresse", labelEn: "Street", req: "muss", kind: "text", info: "Strasse Quellobjekt, z.B.: Musterstrasse", infoEn: "Street of the source building, e.g. Musterstrasse" },
+      { key: "hausnummer", label: "Hausnummer", labelEn: "House number", req: "muss", kind: "text", info: "Hausnummer Quellobjekt, z.B.: 12", infoEn: "House number of the source building, e.g. 12" },
+      { key: "plz", label: "PLZ", labelEn: "Postcode", req: "muss", kind: "text", info: "PLZ Quellobjekt, z.B.: 8008", infoEn: "Postcode of the source building, e.g. 8008" },
+      { key: "ort", label: "Ort", labelEn: "Town", req: "muss", kind: "text", info: "Ortsname Quellobjekt, z.B.: Basel", infoEn: "Town of the source building, e.g. Basel" },
+      { key: "land", label: "Land", labelEn: "Country", req: "kann", kind: "text", info: "Landsname Quellobjekt, z.B.: Schweiz", infoEn: "Country of the source building, e.g. Schweiz" },
     ],
   },
   {
-    id: "allgemein", title: "Allgemeine Gebäudedaten", fields: [
-      { key: "bauwerksart", label: "Bauwerksart", en: "Building type – several possible for mixed use", req: "kann", kind: "multi", options: BAUWERKSART, info: "Gemäss Norm SIA 102. Bei gemischter Nutzung mehrere Arten wählen." },
-      { key: "bauweise", label: "Bauweise", en: "Construction weight", req: "kann", kind: "select", options: BAUWEISE, info: "Gemäss Norm SIA 180 (Wärmespeicherfähigkeit): schwer z.B. Massivbau mit Betondecken, leicht z.B. Holz- oder Stahlleichtbau." },
-      { key: "hauptmaterial", label: "Hauptmaterial", en: "Main structural material", req: "kann", kind: "select", options: HAUPTMATERIAL, extra: true, info: "Zusatzfeld (nicht Teil von Swiss-Inv): Hauptmaterial der Tragstruktur." },
-      { key: "baujahr", label: "Baujahr", en: "Year built", req: "kann", kind: "year", info: "Jahreszahl vierstellig, z.B.: 1972" },
-      { key: "gebaeudevolumen", label: "Gebäudevolumen", en: "Building volume", req: "kann", kind: "number", unit: "m3", info: "Gemäss Norm SIA 416, Ziffer 5: Das Gebäudevolumen GV wird aus der Geschossfläche GF und der dazugehörigen Höhe berechnet, ohne jegliche Zuschläge oder Abzüge." },
-      { key: "geschossflaeche", label: "Geschossfläche", en: "Floor area", req: "kann", kind: "number", unit: "m2", info: "Gemäss Norm SIA 416: Die Geschossfläche GF ist die allseitig umschlossene und überdeckte Grundrissfläche der zugänglichen Geschosse einschliesslich der Konstruktionsflächen." },
-      { key: "vollgeschosse", label: "Anzahl Vollgeschosse", en: "Full storeys", req: "kann", kind: "number", info: "Zahl zweistellig: 01, 02, … 99. Vollgeschosse sind alle Geschosse von Gebäuden ausser Unter-, Dach- und Attikageschosse." },
+    id: "allgemein", title: "Allgemeine Gebäudedaten", titleEn: "General building data", fields: [
+      { key: "bauwerksart", label: "Bauwerksart", labelEn: "Building type", req: "kann", kind: "multi", options: BAUWERKSART,
+        hint: "Bei gemischter Nutzung mehrere wählen.", hintEn: "For mixed use, choose several.",
+        info: "Gemäss Norm SIA 102.", infoEn: "According to SIA 102." },
+      { key: "bauweise", label: "Bauweise", labelEn: "Construction weight", req: "kann", kind: "select", options: BAUWEISE,
+        info: "Gemäss Norm SIA 180 (Wärmespeicherfähigkeit): schwer z.B. Massivbau mit Betondecken, leicht z.B. Holz- oder Stahlleichtbau.",
+        infoEn: "According to SIA 180 (thermal mass): heavy e.g. solid construction with concrete slabs, light e.g. timber or light steel construction." },
+      { key: "hauptmaterial", label: "Hauptmaterial", labelEn: "Main structural material", req: "kann", kind: "select", options: HAUPTMATERIAL, extra: true,
+        info: "Zusatzfeld (nicht Teil von Swiss-Inv): Hauptmaterial der Tragstruktur.", infoEn: "App field (not part of Swiss-Inv): main material of the load-bearing structure." },
+      { key: "baujahr", label: "Baujahr", labelEn: "Year built", req: "kann", kind: "year", info: "Jahreszahl vierstellig, z.B.: 1972", infoEn: "Four-digit year, e.g. 1972" },
+      { key: "gebaeudevolumen", label: "Gebäudevolumen", labelEn: "Building volume", req: "kann", kind: "number", unit: "m3",
+        info: "Gemäss Norm SIA 416, Ziffer 5: Das Gebäudevolumen GV wird aus der Geschossfläche GF und der dazugehörigen Höhe berechnet, ohne jegliche Zuschläge oder Abzüge.",
+        infoEn: "According to SIA 416, section 5: calculated from the floor area and its height, without additions or deductions." },
+      { key: "geschossflaeche", label: "Geschossfläche", labelEn: "Floor area", req: "kann", kind: "number", unit: "m2",
+        info: "Gemäss Norm SIA 416: Die Geschossfläche GF ist die allseitig umschlossene und überdeckte Grundrissfläche der zugänglichen Geschosse einschliesslich der Konstruktionsflächen.",
+        infoEn: "According to SIA 416: the enclosed and covered plan area of all accessible floors, including structural areas." },
+      { key: "vollgeschosse", label: "Anzahl Vollgeschosse", labelEn: "Number of full storeys", req: "kann", kind: "number",
+        info: "Zahl zweistellig: 01, 02, … 99. Vollgeschosse sind alle Geschosse von Gebäuden ausser Unter-, Dach- und Attikageschosse.",
+        infoEn: "Two digits: 01, 02, … 99. Full storeys are all storeys except basements, attics and penthouse storeys." },
     ],
   },
   {
-    id: "weitere", title: "Weitere Informationen", fields: [
-      { key: "jahrUmbau", label: "Jahr der letzten Umbaumassnahmen", en: "Year of last renovation", req: "kann", kind: "year", info: "Jahreszahl vierstellig, z.B.: 2004" },
-      { key: "umbauInfo", label: "Informationen über vergangene Umbaumassnahmen", en: "Past renovations", req: "kann", kind: "multi", options: UMBAU_INFO, info: "Art der Arbeit / Renovierung" },
-      { key: "erschliessung", label: "Grobe Erschliessung", en: "Access for dismantling", req: "muss", kind: "select", options: ERSCHLIESSUNG, info: "Wichtig, um den Aufwand der Logistik bei der Demontage bzw. bei der Ausbringung der Elemente zu ermitteln." },
-      { key: "ereignisse", label: "Informationen über aussergewöhnliche Einzelereignisse in der Bauwerksgeschichte", en: "Exceptional events", req: "kann", kind: "multi", options: EREIGNISSE },
-      { key: "weitereInfo", label: "Weitere Informationen", en: "Further information", req: "kann", kind: "textarea", info: "Zusätzliche Beschreibung, falls wichtige Informationen für die Inventarisierung nicht in den vorhandenen Datenfeldern erfasst werden können." },
+    id: "weitere", title: "Weitere Informationen", titleEn: "Further information", fields: [
+      { key: "jahrUmbau", label: "Jahr der letzten Umbaumassnahmen", labelEn: "Year of last renovation", req: "kann", kind: "year", info: "Jahreszahl vierstellig, z.B.: 2004", infoEn: "Four-digit year, e.g. 2004" },
+      { key: "umbauInfo", label: "Informationen über vergangene Umbaumassnahmen", labelEn: "Past renovations", req: "kann", kind: "multi", options: UMBAU_INFO, info: "Art der Arbeit / Renovierung", infoEn: "Type of work or renovation" },
+      { key: "erschliessung", label: "Grobe Erschliessung", labelEn: "Access for dismantling", req: "muss", kind: "select", options: ERSCHLIESSUNG,
+        info: "Wichtig, um den Aufwand der Logistik bei der Demontage bzw. bei der Ausbringung der Elemente zu ermitteln.",
+        infoEn: "Needed to estimate the logistics effort for dismantling and removing the elements." },
+      { key: "ereignisse", label: "Informationen über aussergewöhnliche Einzelereignisse in der Bauwerksgeschichte", labelEn: "Exceptional events in the building's history", req: "kann", kind: "multi", options: EREIGNISSE },
+      { key: "weitereInfo", label: "Weitere Informationen", labelEn: "Further information", req: "kann", kind: "textarea",
+        info: "Zusätzliche Beschreibung, falls wichtige Informationen für die Inventarisierung nicht in den vorhandenen Datenfeldern erfasst werden können.",
+        infoEn: "Additional description if important information does not fit the other fields." },
     ],
   },
   {
-    id: "kontakte", title: "Kontakte", fields: [
-      { key: "agName", label: "Name Auftraggeberin", en: "Client name", req: "muss", kind: "text", placeholder: "Peter Muster" },
-      { key: "agEmail", label: "Email Auftraggeberin", en: "Client email", req: "muss", kind: "email", placeholder: "peter.muster@firma.ch" },
-      { key: "agTelefon", label: "Telefon Auftraggeberin", en: "Client phone", req: "muss", kind: "tel", placeholder: "+41 41 536 11 19" },
-      { key: "exName", label: "Name der Expertin, die das Audit durchgeführt hat", en: "Auditor name – remembered for new projects", req: "muss", kind: "text" },
-      { key: "exEmail", label: "Email der Expertin, die das Audit durchgeführt hat", en: "Auditor email", req: "muss", kind: "email" },
-      { key: "exTelefon", label: "Telefon der Person, die die Bestandsaufnahme durchgeführt hat", en: "Auditor phone", req: "muss", kind: "tel" },
-      { key: "architektin", label: "Architektin Quellobjekt", en: "Original architect", req: "kann", kind: "text", info: "Ursprüngliche Architektin vom Baujahr: Vorname Name Firma, z.B.: Peter Muster Cirkla" },
-      { key: "ingenieurin", label: "Ingenieurin Quellobjekt", en: "Original engineer", req: "kann", kind: "text", info: "Ursprüngliche Ingenieurin vom Baujahr: Vorname Name Firma" },
+    id: "kontakte", title: "Kontakte", titleEn: "Contacts", fields: [
+      { key: "agName", label: "Name Auftraggeberin", labelEn: "Client name", req: "muss", kind: "text", placeholder: "Peter Muster" },
+      { key: "agEmail", label: "Email Auftraggeberin", labelEn: "Client email", req: "muss", kind: "email", placeholder: "peter.muster@firma.ch" },
+      { key: "agTelefon", label: "Telefon Auftraggeberin", labelEn: "Client phone", req: "muss", kind: "tel", placeholder: "+41 41 536 11 19" },
+      { key: "exName", label: "Name der Expertin, die das Audit durchgeführt hat", labelEn: "Auditor name", req: "muss", kind: "text",
+        hint: "Wird für neue Projekte auf diesem Gerät gespeichert.", hintEn: "Remembered for new projects on this device." },
+      { key: "exEmail", label: "Email der Expertin, die das Audit durchgeführt hat", labelEn: "Auditor email", req: "muss", kind: "email" },
+      { key: "exTelefon", label: "Telefon der Person, die die Bestandsaufnahme durchgeführt hat", labelEn: "Auditor phone", req: "muss", kind: "tel" },
+      { key: "architektin", label: "Architektin Quellobjekt", labelEn: "Original architect", req: "kann", kind: "text",
+        info: "Ursprüngliche Architektin vom Baujahr: Vorname Name Firma, z.B.: Peter Muster Cirkla", infoEn: "Original architect at the time of construction: first name, last name, firm" },
+      { key: "ingenieurin", label: "Ingenieurin Quellobjekt", labelEn: "Original engineer", req: "kann", kind: "text",
+        info: "Ursprüngliche Ingenieurin vom Baujahr: Vorname Name Firma", infoEn: "Original engineer at the time of construction: first name, last name, firm" },
     ],
   },
 ];
@@ -195,115 +195,118 @@ export const BUILDING_FIELDS = BUILDING_SECTIONS.flatMap(s => s.fields);
 export const EXPERT_KEYS = ["exName", "exEmail", "exTelefon"];
 
 /** Values that are usually the same for all elements of a building; set once, copied into each element. */
-export const PROJECT_DEFAULT_KEYS = ["verfuegbarStart", "verfuegbarEnde", "dokumente", "dokumenteText", "status"];
+export const PROJECT_DEFAULT_KEYS = ["verfuegbarStart", "verfuegbarEnde", "status", "dokumente", "dokumenteText"];
 
 /* --------------------------------------------------------- BAUTEIL */
 
-export const ELEMENT_STUFE1: Section[] = [
-  {
-    id: "identifikation", title: "Identifikation", fields: [
-      { key: "bezeichnung", label: "Bezeichnung", en: "Name of the element", req: "muss", kind: "text", info: "Bezeichnung des Bauteils, z.B.: Innentür" },
-      { key: "bauteilId", label: "Bauteil ID", en: "Element ID – created automatically", req: "muss", kind: "text", info: "Eindeutige Identifikationsnummer des Bauteils. Swiss-Inv definiert keine harmonisierte ID; die App vergibt Raum-Tag + laufende Nummer." },
-      { key: "bestandteilVon", label: "Bestandteil von", en: "Part of (parent element ID)", req: "kann", kind: "text", info: "Bezug zu einem grösseren Teilsystem, z.B. Stahlfachwerk Dach; verwiesen wird auf die übergeordnete Bauteil ID." },
-      { key: "ebkp", label: "eBKP-H/T Nummer", en: "eBKP element group", req: "muss", kind: "select", options: EBKP.map(e => e[0]), info: "eBKP-Elementgruppe, Detaillierungsgrad zweistellig, z.B.: C01, D02, G03" },
-      { key: "ebkpText", label: "eBKP-H/T Bezeichnung", en: "filled automatically", req: "muss", kind: "text", info: "Textbezeichnung, automatisch mit der eingetragenen eBKP-Nummer verknüpft." },
-      { key: "ifc", label: "IFC Entität", en: "IFC entity", req: "kann", kind: "text", placeholder: "IfcDoor", info: "ca. 760 Entitäten gemäss buildingSMART oder Verzeichnis Stadt Zürich, z.B. IfcStair" },
-    ],
-  },
-  {
-    id: "verortung", title: "Verortung", fields: [
-      { key: "verortung", label: "Verortung im Gebäude", en: "Location – from the room", req: "muss", kind: "text", info: "Text um Einzelelemente zu verorten: Raum XY_Geschoss, z.B.: Raum 114_2.OG" },
-      { key: "koordinaten", label: "Koordinaten", en: "Coordinates", req: "kann", kind: "text", info: "3D-Modellbezug (BIM-Schnittstelle), GIS, Zeichnungsviewer, 2D-Zeichnung mit Koordinatenbezug" },
-    ],
-  },
-  {
-    id: "menge", title: "Menge", fields: [
-      { key: "menge", label: "Menge", en: "Quantity", req: "muss", kind: "number", placeholder: "30" },
-      { key: "einheit", label: "Einheit", en: "Unit", req: "muss", kind: "select", options: EINHEIT },
-    ],
-  },
-  {
-    id: "abmessungen", title: "Abmessungen", fields: [
-      { key: "hoehe", label: "Höhe", en: "Height", req: "muss", kind: "number", unit: "cm" },
-      { key: "breite", label: "Breite", en: "Width", req: "muss", kind: "number", unit: "cm" },
-      { key: "tiefe", label: "Tiefe", en: "Depth", req: "muss", kind: "number", unit: "cm" },
-      { key: "laenge", label: "Länge", en: "Length – for linear elements", req: "muss", kind: "number", unit: "cm" },
-      { key: "durchmesser", label: "Durchmesser", en: "Diameter – for round elements", req: "muss", kind: "number", unit: "cm" },
-      { key: "weitereDimension", label: "weitere Dimension", en: "Other dimension", req: "kann", kind: "text" },
-    ],
-  },
-  {
-    id: "beschreibung", title: "Beschreibung", fields: [
-      { key: "herstellerin", label: "Herstellerin", en: "Manufacturer – optional", req: "kann", kind: "text" },
-      { key: "materialien", label: "Materialien", en: "Materials", req: "kann", kind: "text", info: "Materialien und Besonderheiten, gemäss Liste SIG éco21" },
-    ],
-  },
-  {
-    id: "potenzial", title: "Potenzial", fields: [
-      { key: "schadstoffbelastet", label: "Schadstoffbelastet", en: "Contains pollutants", req: "muss", kind: "select", options: SCHADSTOFFBELASTET },
-      { key: "schadstoffverdacht", label: "Offenkundiger Schadstoffverdacht", en: "Suspected pollutants", req: "kann", kind: "text", info: "Textverweis Schadstoffanalyse" },
-      { key: "zustand", label: "Gebrauchszustand und Funktionstüchtigkeit", en: "Condition", req: "kann", kind: "select", options: GEBRAUCHSZUSTAND },
-      { key: "zustandText", label: "Gebrauchszustand und Funktionstüchtigkeit (Text)", en: "Condition – description", req: "kann", kind: "textarea", info: "Freier Text mit Beschrieb der Schäden, Zustand und Funktionstüchtigkeit (z.B. bei technischen Apparaten)" },
-      { key: "verbindung", label: "Verbindungsarten (grobe Einschätzung)", en: "Connection type", req: "muss", kind: "select", options: VERBINDUNG, info: "Verbindung des Bauteils mit dem Bauwerk. Keine Schätzungen und keine falschen Verbindungen eintragen – besser «Verbindung unbekannt»." },
-      { key: "potenzial", label: "Potential für hochwertige Anschlussnutzung", en: "Reuse potential – will be suggested automatically in a later version", req: "kann", kind: "select", options: POTENZIAL },
-      { key: "potenzialBegruendung", label: "Begründung der Einschätzung zum Potential für hochwertige Anschlussnutzung", en: "Reasoning", req: "kann", kind: "textarea" },
-      { key: "zielprojektBekannt", label: "Zielprojekt bekannt", en: "Destination project known", req: "kann", kind: "select", options: ["ja", "nein"], extra: true, info: "Zusatzfeld (nicht Teil von Swiss-Inv)." },
-      { key: "zielprojekt", label: "Zielprojekt", en: "Destination project", req: "kann", kind: "text", extra: true, info: "Zusatzfeld (nicht Teil von Swiss-Inv)." },
-    ],
-  },
-  {
-    id: "anhaenge", title: "Anhänge", fields: [
-      { key: "dokumente", label: "Liste der vorhandenen Dokumente", en: "Available documents – default from the building", req: "muss", kind: "multi", options: DOKUMENTE },
-      { key: "dokumenteText", label: "Liste der vorhandenen Dokumente (Text)", en: "Documents – names", req: "muss", kind: "text", placeholder: "z.B.: Schadstoffbericht" },
-    ],
-  },
+const F = (f: FieldDef) => f;
+export const ELEMENT_FIELD_LIST: FieldDef[] = [
+  // Identifikation
+  F({ key: "bauteiltyp", label: "Bauteiltyp", labelEn: "Element type", req: "kann", kind: "text", extra: true,
+    hint: "Aus dem CRB-Regelsatz eBKP-H – IFC; erzeugt eBKP-Nummer, eBKP-Bezeichnung und IFC-Entität.", hintEn: "From the CRB eBKP-H – IFC rule set; generates the eBKP number, eBKP name and IFC entity.",
+    info: "Zusatzfeld (nicht Teil von Swiss-Inv): standardisiert eBKP und IFC.", infoEn: "App field (not part of Swiss-Inv): standardises eBKP and IFC." }),
+  F({ key: "ifcTyp", label: "IFC PredefinedType", labelEn: "IFC predefined type", req: "kann", kind: "text", extra: true,
+    info: "Zusatzfeld: vordefinierter Typ der IFC-Entität gemäss CRB-Regelsatz, z.B. DOOR.", infoEn: "App field: predefined type of the IFC entity from the CRB rule set, e.g. DOOR." }),
+  F({ key: "bezeichnung", label: "Bezeichnung", labelEn: "Name", req: "muss", kind: "text",
+    info: "Bezeichnung des Bauteils, z.B.: Innentür", infoEn: "Name of the element, e.g. internal door" }),
+  F({ key: "bauteilId", label: "Bauteil ID", labelEn: "Element ID", req: "muss", kind: "text",
+    hint: "Automatisch: Raum-Tag + laufende Nummer.", hintEn: "Automatic: room tag + running number.",
+    info: "Eindeutige Identifikationsnummer des Bauteils. Swiss-Inv definiert keine harmonisierte ID.", infoEn: "Unique identifier of the element. Swiss-Inv does not define a harmonised ID." }),
+  F({ key: "bestandteilVon", label: "Bestandteil von", labelEn: "Part of (parent element ID)", req: "kann", kind: "text",
+    info: "Bezug zu einem grösseren Teilsystem, z.B. Stahlfachwerk Dach; verwiesen wird auf die übergeordnete Bauteil ID.",
+    infoEn: "Reference to a larger system, e.g. a steel roof truss; enter the parent element ID." }),
+  F({ key: "ebkp", label: "eBKP-H/T Nummer", labelEn: "eBKP number", req: "muss", kind: "select", options: EBKP.map(e => e[0]),
+    info: "eBKP-H-Element, vollständige Nummer aus dem gewählten Bauteiltyp (CRB-Regelsatz), z.B. G01.05. Ohne Bauteiltyp: Elementgruppe, z.B. C01, D02, G03.",
+    infoEn: "eBKP-H element, full code from the chosen element type (CRB rule set), e.g. G01.05. Without a type: element group, e.g. C01, D02, G03." }),
+  F({ key: "ebkpText", label: "eBKP-H/T Bezeichnung", labelEn: "eBKP name", req: "muss", kind: "text",
+    info: "Textbezeichnung, automatisch mit der eingetragenen eBKP-Nummer verknüpft, z.B. G01.05 Innentür.", infoEn: "Name linked automatically to the eBKP number, e.g. G01.05 internal door." }),
+  F({ key: "ifc", label: "IFC Entität", labelEn: "IFC entity", req: "kann", kind: "text", placeholder: "IfcDoor",
+    info: "ca. 760 Entitäten gemäss buildingSMART oder Verzeichnis Stadt Zürich, z.B. IfcStair", infoEn: "About 760 entities from buildingSMART or the City of Zurich list, e.g. IfcStair" }),
+  // Verortung (filled automatically, not shown)
+  F({ key: "verortung", label: "Verortung im Gebäude", labelEn: "Location in the building", req: "muss", kind: "text",
+    info: "Text um Einzelelemente zu verorten: Raum XY_Geschoss, z.B.: Raum 114_2.OG", infoEn: "Room and floor, e.g. Raum 114_2.OG" }),
+  F({ key: "koordinaten", label: "Koordinaten", labelEn: "Coordinates", req: "kann", kind: "text" }),
+  // Menge + Abmessungen
+  F({ key: "menge", label: "Menge", labelEn: "Quantity", req: "muss", kind: "number", placeholder: "30" }),
+  F({ key: "einheit", label: "Einheit", labelEn: "Unit", req: "muss", kind: "select", options: EINHEIT }),
+  F({ key: "hoehe", label: "Höhe", labelEn: "Height", req: "muss", kind: "number", unit: "cm" }),
+  F({ key: "breite", label: "Breite", labelEn: "Width", req: "muss", kind: "number", unit: "cm" }),
+  F({ key: "tiefe", label: "Tiefe", labelEn: "Depth", req: "muss", kind: "number", unit: "cm" }),
+  F({ key: "laenge", label: "Länge", labelEn: "Length", req: "muss", kind: "number", unit: "cm" }),
+  F({ key: "durchmesser", label: "Durchmesser", labelEn: "Diameter", req: "muss", kind: "number", unit: "cm" }),
+  F({ key: "weitereDimension", label: "weitere Dimension", labelEn: "Other dimension", req: "kann", kind: "text" }),
+  // Beschreibung
+  F({ key: "herstellerin", label: "Herstellerin", labelEn: "Manufacturer", req: "kann", kind: "text" }),
+  F({ key: "materialien", label: "Materialien", labelEn: "Materials", req: "kann", kind: "text",
+    info: "Materialien und Besonderheiten, gemäss Liste SIG éco21", infoEn: "Materials and particularities, following the SIG éco21 list" }),
+  // Potenzial
+  F({ key: "schadstoffbelastet", label: "Schadstoffbelastet", labelEn: "Contains pollutants", req: "muss", kind: "select", options: SCHADSTOFFBELASTET }),
+  F({ key: "schadstoffverdacht", label: "Offenkundiger Schadstoffverdacht", labelEn: "Obvious suspected pollutants", req: "kann", kind: "text",
+    info: "Textverweis Schadstoffanalyse", infoEn: "Reference to the pollutant analysis" }),
+  F({ key: "zustand", label: "Gebrauchszustand und Funktionstüchtigkeit", labelEn: "Condition", req: "kann", kind: "select", options: GEBRAUCHSZUSTAND }),
+  F({ key: "zustandText", label: "Gebrauchszustand und Funktionstüchtigkeit (Text)", labelEn: "Condition – description", req: "kann", kind: "textarea",
+    info: "Freier Text mit Beschrieb der Schäden, Zustand und Funktionstüchtigkeit (z.B. bei technischen Apparaten)", infoEn: "Free text describing damage, condition and function (e.g. for technical equipment)" }),
+  F({ key: "verbindung", label: "Verbindungsarten (grobe Einschätzung)", labelEn: "Connection type (rough estimate)", req: "muss", kind: "select", options: VERBINDUNG,
+    info: "Verbindung des Bauteils mit dem Bauwerk. Keine Schätzungen und keine falschen Verbindungen eintragen – besser «Verbindung unbekannt».",
+    infoEn: "How the element is fixed to the building. Do not guess – choose “unknown” if unclear." }),
+  F({ key: "potenzial", label: "Potential für hochwertige Anschlussnutzung", labelEn: "Potential for high-value reuse", req: "kann", kind: "select", options: POTENZIAL,
+    hint: "Wird in einer späteren Version automatisch vorgeschlagen.", hintEn: "A later version will suggest this automatically." }),
+  F({ key: "potenzialBegruendung", label: "Begründung der Einschätzung zum Potential für hochwertige Anschlussnutzung", labelEn: "Reasoning for the reuse potential", req: "kann", kind: "textarea" }),
+  F({ key: "zielprojektBekannt", label: "Zielprojekt bekannt", labelEn: "Destination project known", req: "kann", kind: "select", options: ["ja", "nein"], extra: true }),
+  F({ key: "zielprojekt", label: "Zielprojekt", labelEn: "Destination project", req: "kann", kind: "text", extra: true }),
+  // Anhänge
+  F({ key: "dokumente", label: "Liste der vorhandenen Dokumente", labelEn: "Available documents", req: "muss", kind: "multi", options: DOKUMENTE }),
+  F({ key: "dokumenteText", label: "Liste der vorhandenen Dokumente (Text)", labelEn: "Document names", req: "muss", kind: "text", placeholder: "z.B.: Schadstoffbericht" }),
+  // Stufe 2
+  F({ key: "einbaujahr", label: "Einbaujahr", labelEn: "Year installed", req: "kann", kind: "text", info: "Jahreszahl oder Zeitraum, z.B.: 2004 oder 1990-1995", infoEn: "Year or period, e.g. 2004 or 1990-1995" }),
+  F({ key: "produktionsjahr", label: "Produktionsjahr", labelEn: "Year produced", req: "kann", kind: "text", info: "Jahreszahl oder Zeitraum, z.B.: 2004", infoEn: "Year or period, e.g. 2004" }),
+  F({ key: "farbe", label: "Farbe", labelEn: "Colour", req: "kann", kind: "text", info: "Mehrheitliche Oberflächenfarbe(n)", infoEn: "Main surface colour(s)" }),
+  F({ key: "gewicht", label: "Gewicht", labelEn: "Weight", req: "kann", kind: "number", unit: "kg", info: "Schätzung für Transporte und Lagerung, z.B.: 12 kg", infoEn: "Estimate for transport and storage, e.g. 12 kg" }),
+  F({ key: "weitereInfo2", label: "Weitere Informationen", labelEn: "Further information", req: "kann", kind: "textarea" }),
+  F({ key: "schadstoffart", label: "Art von Schadstoff", labelEn: "Pollutant type", req: "kann", kind: "multi", options: SCHADSTOFFART,
+    info: "Die Schadstoffe sind gemäss dem Schadstoffbericht auszuwählen und dürfen nicht anhand eigener Einschätzungen eingetragen werden.",
+    infoEn: "Choose pollutants only according to the pollutant report, never from your own estimate." }),
+  F({ key: "exposition", label: "Exposition/Bewitterung", labelEn: "Exposure", req: "kann", kind: "select", options: EXPOSITION,
+    info: "Exposition von Bauteilen, die noch nicht demontiert wurden, oder von bereits demontierten und gelagerten Bauteilen.", infoEn: "Exposure of the element in place or in storage." }),
+  F({ key: "demontierbarkeit", label: "Demontierbarkeit", labelEn: "Ease of dismantling", req: "kann", kind: "select", options: DEMONTIERBARKEIT,
+    info: "Selbsteinschätzung, mit welchem Aufwand sich das Bauteil demontieren lässt", infoEn: "Your estimate of the effort to dismantle the element" }),
+  F({ key: "demontageVoraussetzungen", label: "Voraussetzungen für die Demontage", labelEn: "Requirements for dismantling", req: "kann", kind: "textarea",
+    info: "Was der Demonteur für die Demontage einplanen muss (Spezialwerkzeuge, Zugang, Transport)", infoEn: "What the dismantler must plan for (special tools, access, transport)" }),
+  F({ key: "demontagePhase", label: "Phase der Demontage", labelEn: "Dismantling phase", req: "kann", kind: "text",
+    info: "z.B. statikrelevantes Bauteil, Treppenelement mit Absturzsicherung", infoEn: "e.g. structural element, stair element with fall protection" }),
+  F({ key: "verfuegbarStart", label: "Start Verfügbarkeit", labelEn: "Available from", req: "muss", kind: "date",
+    info: "Startzeitpunkt der Verfügbarkeit, sofern noch im Quellobjekt eingebaut, z.B.: 01.03.2028", infoEn: "Date from which the element is available, if still installed, e.g. 01.03.2028" }),
+  F({ key: "verfuegbarEnde", label: "Ende Verfügbarkeit", labelEn: "Available until", req: "muss", kind: "date",
+    info: "Endzeitpunkt der Verfügbarkeit bzw. Start der Abbrucharbeiten, z.B.: 31.12.2035", infoEn: "End of availability, or start of demolition, e.g. 31.12.2035" }),
+  F({ key: "status", label: "Status", labelEn: "Status", req: "kann", kind: "select", options: STATUS, info: "Aktueller Bauteilstatus", infoEn: "Current status of the element" }),
+  F({ key: "lagerort", label: "Lagerort", labelEn: "Storage location (LV95)", req: "kann", kind: "text",
+    info: "Falls die Bauteile anderswo gelagert sind, z.B.: E 2681474.519; N 1249160.809", infoEn: "If the elements are stored elsewhere, e.g. E 2681474.519; N 1249160.809" }),
+  F({ key: "datumEinlagerung", label: "Datum Einlagerung", labelEn: "Date stored", req: "kann", kind: "date" }),
+  F({ key: "datumAuslagerung", label: "Datum Auslagerung", labelEn: "Date removed from storage", req: "kann", kind: "date" }),
+  F({ key: "lagerung", label: "Voraussetzungen für die Lagerung (Aufbereitung)", labelEn: "Storage requirements", req: "kann", kind: "multi", options: LAGERUNG }),
+  F({ key: "thg", label: "THG Einsparungen", labelEn: "GHG savings", req: "kann", kind: "number", unit: "kg CO2 eq",
+    info: "kg CO2 eq pro Einheit des Bauteils, gemäss KBOB-Liste, z.B.: 0.9", infoEn: "kg CO2 eq per unit, according to the KBOB list, e.g. 0.9" }),
+  F({ key: "materialEinsparung", label: "Eingesparte Material- / Rohstoffmenge", labelEn: "Material saved", req: "kann", kind: "text" }),
+  F({ key: "weitereMessgroesse", label: "weitere Messgrösse", labelEn: "Other metric", req: "kann", kind: "text" }),
 ];
+export const ELEMENT_FIELD: Record<string, FieldDef> = Object.fromEntries(ELEMENT_FIELD_LIST.map(f => [f.key, f]));
 
-export const ELEMENT_STUFE2: Section[] = [
-  {
-    id: "beschreibung2", title: "Beschreibung", fields: [
-      { key: "einbaujahr", label: "Einbaujahr", en: "Year installed", req: "kann", kind: "text", info: "Jahreszahl oder Zeitraum, z.B.: 2004 oder 1990-1995" },
-      { key: "produktionsjahr", label: "Produktionsjahr", en: "Year produced", req: "kann", kind: "text", info: "Jahreszahl oder Zeitraum, z.B.: 2004" },
-      { key: "farbe", label: "Farbe", en: "Colour", req: "kann", kind: "text", info: "Mehrheitliche Oberflächenfarbe(n)" },
-      { key: "gewicht", label: "Gewicht", en: "Weight", req: "kann", kind: "number", unit: "kg", info: "Schätzung für Transporte und Lagerung, z.B.: 12 kg" },
-      { key: "weitereInfo2", label: "Weitere Informationen", en: "Further information", req: "kann", kind: "textarea" },
-    ],
-  },
-  {
-    id: "potenzial2", title: "Potenzial", fields: [
-      { key: "schadstoffart", label: "Art von Schadstoff", en: "Pollutant type – only from a pollutant report", req: "kann", kind: "multi", options: SCHADSTOFFART, info: "Die Schadstoffe sind gemäss dem Schadstoffbericht auszuwählen und dürfen nicht anhand eigener Einschätzungen eingetragen werden." },
-      { key: "exposition", label: "Exposition/Bewitterung", en: "Exposure", req: "kann", kind: "select", options: EXPOSITION, info: "Exposition von Bauteilen, die noch nicht demontiert wurden, oder von bereits demontierten und gelagerten Bauteilen." },
-      { key: "demontierbarkeit", label: "Demontierbarkeit", en: "Ease of dismantling", req: "kann", kind: "select", options: DEMONTIERBARKEIT, info: "Selbsteinschätzung, mit welchem Aufwand sich das Bauteil demontieren lässt" },
-      { key: "demontageVoraussetzungen", label: "Voraussetzungen für die Demontage", en: "Requirements for dismantling", req: "kann", kind: "textarea", info: "Was der Demonteur für die Demontage einplanen muss (Spezialwerkzeuge, Zugang, Transport)" },
-      { key: "demontagePhase", label: "Phase der Demontage", en: "Dismantling phase", req: "kann", kind: "text", info: "z.B. statikrelevantes Bauteil, Treppenelement mit Absturzsicherung" },
-    ],
-  },
-  {
-    id: "status", title: "Status", fields: [
-      { key: "verfuegbarStart", label: "Start Verfügbarkeit", en: "Available from – default from the building", req: "muss", kind: "date", info: "Startzeitpunkt der Verfügbarkeit, sofern noch im Quellobjekt eingebaut, z.B.: 01.03.2028" },
-      { key: "verfuegbarEnde", label: "Ende Verfügbarkeit", en: "Available until", req: "muss", kind: "date", info: "Endzeitpunkt der Verfügbarkeit bzw. Start der Abbrucharbeiten, z.B.: 31.12.2035" },
-      { key: "status", label: "Status", en: "Status", req: "kann", kind: "select", options: STATUS, info: "Aktueller Bauteilstatus" },
-      { key: "lagerort", label: "Lagerort", en: "Storage location (LV95 coordinates)", req: "kann", kind: "text", info: "Falls die Bauteile anderswo gelagert sind, z.B.: E 2681474.519; N 1249160.809" },
-      { key: "datumEinlagerung", label: "Datum Einlagerung", en: "Stored on", req: "kann", kind: "date" },
-      { key: "datumAuslagerung", label: "Datum Auslagerung", en: "Removed from storage on", req: "kann", kind: "date" },
-      { key: "lagerung", label: "Voraussetzungen für die Lagerung (Aufbereitung)", en: "Storage requirements", req: "kann", kind: "multi", options: LAGERUNG },
-    ],
-  },
-  {
-    id: "auswertung", title: "Auswertung", fields: [
-      { key: "thg", label: "THG Einsparungen", en: "GHG savings", req: "kann", kind: "number", unit: "kg CO2 eq", info: "kg CO2 eq pro Einheit des Bauteils, gemäss KBOB-Liste, z.B.: 0.9" },
-      { key: "materialEinsparung", label: "Eingesparte Material- / Rohstoffmenge", en: "Material saved", req: "kann", kind: "text" },
-      { key: "weitereMessgroesse", label: "weitere Messgrösse", en: "Other metric", req: "kann", kind: "text" },
-    ],
-  },
+const pick = (keys: string[]) => keys.map(k => ELEMENT_FIELD[k]);
+
+/** Export order = template order. Stufe 1 then photos, then Stufe 2. */
+export const STUFE1_KEYS = ["bezeichnung", "bauteilId", "bestandteilVon", "ebkp", "ebkpText", "ifc", "verortung", "koordinaten", "menge", "einheit",
+  "hoehe", "breite", "tiefe", "laenge", "durchmesser", "weitereDimension", "herstellerin", "materialien", "schadstoffbelastet", "schadstoffverdacht",
+  "zustand", "zustandText", "verbindung", "potenzial", "potenzialBegruendung", "zielprojektBekannt", "zielprojekt", "dokumente", "dokumenteText"];
+export const STUFE2_SECTIONS: Section[] = [
+  { id: "beschreibung2", title: "Beschreibung", titleEn: "Description", fields: pick(["einbaujahr", "produktionsjahr", "farbe", "gewicht", "weitereInfo2"]) },
+  { id: "potenzial2", title: "Potenzial", titleEn: "Potential", fields: pick(["schadstoffart", "exposition", "demontierbarkeit", "demontageVoraussetzungen", "demontagePhase"]) },
+  { id: "status", title: "Status", titleEn: "Status", fields: pick(["verfuegbarStart", "verfuegbarEnde", "status", "lagerort", "datumEinlagerung", "datumAuslagerung", "lagerung"]) },
+  { id: "auswertung", title: "Auswertung", titleEn: "Evaluation", fields: pick(["thg", "materialEinsparung", "weitereMessgroesse"]) },
 ];
-
-export const ELEMENT_FIELDS = [...ELEMENT_STUFE1, ...ELEMENT_STUFE2].flatMap(s => s.fields);
-export const ELEMENT_FIELD = Object.fromEntries(ELEMENT_FIELDS.map(f => [f.key, f]));
-export const BUILDING_FIELD = Object.fromEntries(BUILDING_FIELDS.map(f => [f.key, f]));
+export const STUFE2_KEYS = STUFE2_SECTIONS.flatMap(s => s.fields.map(f => f.key));
 
 /** "Liste der vorhandenen Fotos" (Muss): at least 3 photos per element, max 1.5 MB each. */
-export const PHOTO_SLOTS = ["Frontalansicht", "Seitenansicht", "Detail Fixierung"];
+export const PHOTO_SLOTS = [{ de: "Frontalansicht", en: "Front view" }, { de: "Seitenansicht", en: "Side view" }, { de: "Detail Fixierung", en: "Fixing detail" }];
 export const MAX_PHOTO_BYTES = 1.5 * 1024 * 1024;
 
 /* --------------------------------------------------------- completeness */
@@ -312,25 +315,25 @@ const DIM_KEYS = ["hoehe", "breite", "tiefe", "laenge", "durchmesser"];
 const filled = (v: unknown) => String(v ?? "").trim() !== "";
 
 /**
- * Missing Muss fields of an element. The five dimensions count as one group: it is complete
- * with height + width + depth, or with length, or with diameter (only the relevant ones apply).
+ * Missing Muss fields of an element (keys; "_dims" and "_photos" for the groups). The five
+ * dimensions count as one group: complete with height + width + depth, or length, or diameter.
  */
 export function missingElementMuss(f: Record<string, string>, photoCount: number): string[] {
   const out: string[] = [];
-  for (const d of ELEMENT_FIELDS) {
+  for (const d of ELEMENT_FIELD_LIST) {
     if (d.req !== "muss" || DIM_KEYS.includes(d.key)) continue;
     if (d.key === "dokumenteText" && filled(f.dokumente)) continue; // one of the two document fields is enough
     if (d.key === "dokumente" && filled(f.dokumenteText)) continue;
-    if (!filled(f[d.key])) out.push(d.label);
+    if (!filled(f[d.key])) out.push(d.key);
   }
   const dims = (filled(f.hoehe) && filled(f.breite) && filled(f.tiefe)) || filled(f.laenge) || filled(f.durchmesser);
-  if (!dims) out.push("Abmessungen");
-  if (photoCount < 3) out.push("Fotos (mind. 3)");
+  if (!dims) out.push("_dims");
+  if (photoCount < 3) out.push("_photos");
   return out;
 }
 
 export function missingBuildingMuss(b: Record<string, string>): string[] {
-  return BUILDING_FIELDS.filter(d => d.req === "muss" && !filled(b[d.key])).map(d => d.label);
+  return BUILDING_FIELDS.filter(d => d.req === "muss" && !filled(b[d.key])).map(d => d.key);
 }
 
 /** Multi-select values are stored as one string joined with "; ". */

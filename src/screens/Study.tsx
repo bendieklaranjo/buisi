@@ -1,7 +1,8 @@
 import { Icon } from "../components/Icon";
 import { TopBar } from "../components/TopBar";
 import { exportStudyCSV, studyRows } from "../lib/export";
-import { back } from "../lib/nav";
+import { back, home } from "../lib/nav";
+import { t as tr, useLang } from "../i18n";
 import { useData } from "../lib/store";
 
 const median = (a: number[]) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -9,6 +10,7 @@ const fmt = (s: number | null) => (s == null ? "–" : s >= 90 ? `${(s / 60).toF
 const num = (v: unknown) => Number(v) || 0;
 
 export function Study() {
+  useLang();
   const { projects } = useData();
   const all = Object.values(projects);
   const rows = studyRows(all);
@@ -29,19 +31,19 @@ export function Study() {
 
   return (
     <>
-      <TopBar title="Time study" onBack={back} />
+      <TopBar title={tr("st.title")} onBack={back} onHome={() => home()} homeLabel={tr("c.mainMenu")} />
       <main className="wrap">
         <div className="stack" style={{ gap: 4 }}>
-          <span className="eyebrow">Active time per element, until first save</span>
-          <h2>{gain == null ? "Capture elements in both modes to compare." : gain >= 0 ? `Assisted is ${gain}% faster per element` : `Assisted is ${-gain}% slower per element`}</h2>
+          <span className="eyebrow">{tr("st.eyebrow")}</span>
+          <h2>{gain == null ? tr("st.none") : gain >= 0 ? tr("st.faster", { g: gain }) : tr("st.slower", { g: -gain })}</h2>
         </div>
         <div className="stat-row">
-          <div className="stat"><div className="k">Assisted · median</div><div className="v">{fmt(mA)}</div><div className="d">{A.length} elements · {A.reduce((s, r) => s + num(r.corrections), 0)} corrected suggestions</div></div>
-          <div className="stat"><div className="k">Manual · median</div><div className="v">{fmt(mM)}</div><div className="d">{M.length} elements</div></div>
+          <div className="stat"><div className="k">{tr("st.median", { mode: tr("mode.assisted") })}</div><div className="v">{fmt(mA)}</div><div className="d">{tr("st.corr", { n: A.length, c: A.reduce((s, r) => s + num(r.corrections), 0) })}</div></div>
+          <div className="stat"><div className="k">{tr("st.median", { mode: tr("mode.manual") })}</div><div className="v">{fmt(mM)}</div><div className="d">{tr("st.n", { n: M.length })}</div></div>
         </div>
         {stats.length ? (
           <div className="card stack">
-            <div className="row small"><span className="swatch" style={{ background: "var(--c4)" }} />Assisted<span className="swatch" style={{ background: "var(--sage-deep)", marginLeft: 10 }} />Manual<span className="muted" style={{ marginLeft: "auto" }}>median seconds</span></div>
+            <div className="row small"><span className="swatch" style={{ background: "var(--c4)" }} />{tr("mode.assisted")}<span className="swatch" style={{ background: "var(--sage-deep)", marginLeft: 10 }} />{tr("mode.manual")}<span className="muted" style={{ marginLeft: "auto" }}>{tr("st.sec")}</span></div>
             <svg className="chart" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Median seconds per element by type and mode">
               {[0, niceMax / 2, niceMax].map(v => <g key={v}><line x1={x(v)} x2={x(v)} y1={0} y2={h - 22} stroke="var(--line)" /><text x={x(v)} y={h - 6} textAnchor="middle">{Math.round(v)} s</text></g>)}
               {stats.map((s, k) => {
@@ -57,19 +59,19 @@ export function Study() {
             </svg>
           </div>
         ) : (
-          <div className="list"><div className="empty">No saved elements yet. Time starts when you tap an element (assisted) or choose “Add element manually”, pauses while the app is in the background, and stops when you save.</div></div>
+          <div className="list"><div className="empty">{tr("st.empty")}</div></div>
         )}
         {rows.length > 0 && (
           <>
-            <div className="tablewrap"><table><thead><tr><th>Element</th><th>Room</th><th>Mode</th><th className="num">Time</th><th className="num">Taps</th><th className="num">Kept</th><th className="num">Fixes</th></tr></thead>
+            <div className="tablewrap"><table><thead><tr><th>{tr("st.colEl")}</th><th>{tr("st.colRoom")}</th><th>{tr("st.colMode")}</th><th className="num">{tr("st.colTime")}</th><th className="num">{tr("st.colTaps")}</th><th className="num">{tr("st.colKept")}</th><th className="num">{tr("st.colFix")}</th></tr></thead>
               <tbody>{rows.slice(-40).reverse().map(r => (
                 <tr key={String(r.element_id)}><td>{r.bezeichnung}</td><td className="tag">{r.room_tag}</td><td>{r.mode}</td><td className="num">{fmt(t(r))}</td>
                   <td className="num">{r.segmentation_taps}</td><td className="num">{r.suggestions_kept}</td><td className="num">{r.corrections}</td></tr>
               ))}</tbody></table></div>
-            <button className="btn" onClick={() => exportStudyCSV(all)}><Icon name="export" /> Export time study (.csv)</button>
+            <button className="btn" onClick={() => exportStudyCSV(all)}><Icon name="export" /> {tr("st.export")}</button>
           </>
         )}
-        <p className="note">Assisted: tap-to-outline, the outline crop as first photo and suggestions from the element catalogue. Manual: form only. Both modes get the building-register data and the defaults set once per building. “Kept” and “Fixes” count suggested values left unchanged or corrected.</p>
+        <p className="note">{tr("st.note")}</p>
       </main>
     </>
   );

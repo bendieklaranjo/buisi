@@ -15,4 +15,6 @@ export function navigate(to: Route, replace = false) {
   emit();
 }
 export const back = () => history.back();
+/** Home: inside a project → its project menu; otherwise → the main menu. */
+export const home = (pid?: string) => navigate(pid ? { name: "hub", pid } : { name: "menu" });
 export const useRoute = () => useSyncExternalStore(l => { ls.add(l); return () => ls.delete(l); }, () => route);

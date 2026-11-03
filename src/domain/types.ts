@@ -9,15 +9,18 @@ export interface FloorSetup {
   basements?: number;
 }
 
-/** What the Swiss building register (GWR) returned, kept for reference. */
+/** What the building lookup returned, kept for reference: Swiss register (GWR) or, outside Switzerland, OpenStreetMap. */
 export interface GwrInfo {
-  featureId: string;
+  source?: "gwr" | "osm"; // missing = gwr (projects from before v0.3.1)
+  featureId: string; // GWR "EGID_EDID" or OSM "way/123"
   label: string;
   name?: string; // gbez, e.g. "ETH Hönggerberg"
   gemeinde?: string;
   gemeindeNr?: number;
   e?: number; // LV95 building coordinates
   n?: number;
+  lat?: number; // WGS84, from OSM
+  lon?: number;
   gkat?: number;
   gklas?: number;
   garea?: number; // footprint m²
@@ -103,14 +106,16 @@ export interface Element {
 
 export type Route =
   | { name: "start" }
+  | { name: "language" }
   | { name: "menu" }
   | { name: "project"; pid?: string }
-  | { name: "address"; pid: string }
-  | { name: "building"; pid: string }
+  | { name: "hub"; pid: string }
+  | { name: "info"; pid: string; step: number }
+  | { name: "defaults"; pid: string }
   | { name: "floors"; pid: string }
   | { name: "mode"; pid: string; back: Route }
   | { name: "addRoom"; pid: string; floor: number }
   | { name: "room"; pid: string; roomId: string }
-  | { name: "element"; pid: string; elementId: string }
+  | { name: "element"; pid: string; elementId: string; step: number }
   | { name: "export"; pid: string }
   | { name: "study" };

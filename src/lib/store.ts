@@ -6,6 +6,7 @@
 import { useSyncExternalStore, useEffect, useState } from "react";
 import { createStore, get, set, del, entries } from "idb-keyval";
 import type { Element, Project } from "../domain/types";
+import { t } from "../i18n";
 
 const dataDb = createStore("buisi-data", "records"); // name kept so v0.1 data stays readable
 const photoDb = createStore("buisi-photos", "blobs");
@@ -138,7 +139,7 @@ export function usePhotoUrl(id?: string) {
 /* ---------- persistence (swap these for a backend later) ---------- */
 async function persist(key: string, value: unknown) {
   try { await set(key, JSON.parse(JSON.stringify(value)), dataDb); }
-  catch (e) { console.warn("Save failed", e); window.dispatchEvent(new CustomEvent("buisi:toast", { detail: "Saving failed. Your device may be out of storage." })); }
+  catch (e) { console.warn("Save failed", e); window.dispatchEvent(new CustomEvent("buisi:toast", { detail: t("err.save") })); }
 }
 async function remove(key: string) {
   try { await del(key, dataDb); } catch (e) { console.warn(e); }
